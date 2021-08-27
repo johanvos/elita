@@ -4,6 +4,6 @@ package com.gluonhq.elita;
  *
  * @author johan
  */
-public class ProvisionDecryptResult {
+public class ProvisionResult {
     
 }

@@ -63,6 +63,25 @@ public class Client implements WebSocketInterface.Listener {
         
     }
     
+    public void createAccount(String deviceName) {
+        System.err.println("Creating device "+deviceName);
+//          await createAccount(
+//        provisionMessage.number,
+//        provisionMessage.provisioningCode,
+//        provisionMessage.identityKeyPair,
+//        provisionMessage.profileKey,
+//        deviceName,
+//        provisionMessage.userAgent,
+//        provisionMessage.readReceipts,
+//        { uuid: provisionMessage.uuid }
+//      );
+//      await clearSessionsAndPreKeys();
+//      const keys = await generateKeys();
+//      await this.server.registerKeys(keys);
+//      await this.confirmKeys(keys);
+//      await this.registrationDone();
+}
+      
     @Override
     public void onReceivedRequest(WebSocketRequestMessage requestMessage) {
         String path = requestMessage.getPath();
@@ -86,14 +105,11 @@ public class Client implements WebSocketInterface.Listener {
         } else if ("/v1/message".equals(path)) {
             try {
                 ProvisionEnvelope envelope = ProvisionEnvelope.parseFrom(data);
-                System.err.println("envelope = "+envelope);
                 ByteString publicKey = envelope.getPublicKey();
-                System.err.println("PK = "+publicKey);
-                ProvisionDecryptResult pm = provisioningCipher.decrypt(envelope);
+                ProvisionResult pm = provisioningCipher.decrypt(envelope);
                 System.err.println("Got pm: "+pm);
                 elita.askLocalName();
-                    //  const deviceName = await confirmNumber(provisionMessage.number);
-
+            //  const deviceName = await confirmNumber(provisionMessage.number);
             } catch (Exception ex) {
                 ex.printStackTrace();
             }

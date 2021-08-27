@@ -14,6 +14,7 @@ import javax.crypto.spec.SecretKeySpec;
 import org.whispersystems.libsignal.InvalidKeyException;
 import org.whispersystems.libsignal.ecc.Curve;
 import org.whispersystems.libsignal.ecc.ECKeyPair;
+import org.whispersystems.libsignal.ecc.ECPrivateKey;
 import org.whispersystems.libsignal.ecc.ECPublicKey;
 import org.whispersystems.libsignal.kdf.HKDFv3;
 // import static org.whispersystems.signalservice.internal.push.ProvisioningProtos.*;
@@ -27,8 +28,8 @@ public class ProvisioningCipher {
         ourKeyPair = Curve.generateKeyPair();
     }
 
-    ProvisionDecryptResult decrypt(ProvisionEnvelope envelope) throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException, java.security.InvalidKeyException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException, InvalidProtocolBufferException {
-        ProvisionDecryptResult answer = new ProvisionDecryptResult();
+    ProvisionResult decrypt(ProvisionEnvelope envelope) throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException, java.security.InvalidKeyException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException, InvalidProtocolBufferException {
+        ProvisionResult answer = new ProvisionResult();
         ByteString masterEphemeral = envelope.getPublicKey();
         ECPublicKey ecPub = new ECPublicKey(masterEphemeral.toByteArray());
         ByteString message = envelope.getBody();
@@ -64,15 +65,11 @@ public class ProvisioningCipher {
         System.err.println("cipherText has "+doFinal.length);
         ProvisionMessage pm = ProvisionMessage.parseFrom(doFinal);
         System.err.println("NR = " + pm.getNumber());
-        System.err.println("ct = " + new String(doFinal));
-//    const plaintext = await decryptAes256CbcPkcsPadding(
-//      keys[0],
-//      typedArrayToArrayBuffer(ciphertext),
-//      typedArrayToArrayBuffer(iv)
-//    );
-//    const provisionMessage = Proto.ProvisionMessage.decode(
-//      new FIXMEU8(plaintext)
-//    );
+        ECPrivateKey privateKey = Curve.decodePrivatePoint(pm.getIdentityKeyPrivate().toByteArray());
+        ECPublicKey publicKey = privateKey.publicKey();
+        ECKeyPair keyPair = new ECKeyPair(publicKey, privateKey);
+        System.err.println("identitykp = "+ keyPair);
+
 //    const privKey = provisionMessage.identityKeyPrivate;
 //    strictAssert(privKey, 'Missing identityKeyPrivate in ProvisionMessage');
 //
@@ -95,9 +92,6 @@ public class ProvisioningCipher {
 //    return ret;
 //
 //        
-        
-        byte[] b = envelope.toByteArray();
-        System.err.println("that's it");
         return answer;
     }
     

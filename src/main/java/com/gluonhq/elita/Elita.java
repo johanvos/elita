@@ -49,6 +49,10 @@ public class Elita extends Application {
             root.getChildren().clear();
             root.getChildren().add(vbox);
         });
+        btn.setOnAction(b -> {
+            String name = tf.getText();
+            client.createAccount(name);
+        });
     }
     
     public void setProvisioningURL(String url) {
