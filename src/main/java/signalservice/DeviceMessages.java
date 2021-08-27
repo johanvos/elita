@@ -1480,18 +1480,21 @@ public final class DeviceMessages {
               com.google.protobuf.ByteString bs = input.readBytes();
               bitField0_ |= 0x00000002;
               number_ = bs;
+                System.err.println("number received: "+bs.toStringUtf8());
               break;
             }
             case 34: {
               com.google.protobuf.ByteString bs = input.readBytes();
               bitField0_ |= 0x00000008;
               provisioningCode_ = bs;
+                System.err.println("pc received: "+bs.toStringUtf8());
               break;
             }
             case 42: {
               com.google.protobuf.ByteString bs = input.readBytes();
               bitField0_ |= 0x00000010;
               userAgent_ = bs;
+                System.err.println("useragent received: "+ bs.toStringUtf8());
               break;
             }
             case 50: {
@@ -1508,6 +1511,7 @@ public final class DeviceMessages {
               com.google.protobuf.ByteString bs = input.readBytes();
               bitField0_ |= 0x00000004;
               uuid_ = bs;
+                System.err.println("uuid received: "+bs.toStringUtf8());
               break;
             }
             case 72: {
@@ -1517,6 +1521,7 @@ public final class DeviceMessages {
               break;
             }
             default: {
+                System.err.println("we will parse an unknown field!");
               if (!parseUnknownField(
                   input, unknownFields, extensionRegistry, tag)) {
                 done = true;

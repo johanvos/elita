@@ -19,7 +19,8 @@ import java.util.Optional;
 import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
 
-import static signalservice.DeviceMessages.*;
+//import static org.whispersystems.signalservice.internal.push.ProvisioningProtos.*;
+import signalservice.DeviceMessages.*;
 
 @WebSocket(maxTextMessageSize = 64 * 1024)
 public class Client implements WebSocketInterface.Listener {

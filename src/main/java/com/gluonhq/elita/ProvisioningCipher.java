@@ -16,7 +16,7 @@ import org.whispersystems.libsignal.ecc.Curve;
 import org.whispersystems.libsignal.ecc.ECKeyPair;
 import org.whispersystems.libsignal.ecc.ECPublicKey;
 import org.whispersystems.libsignal.kdf.HKDFv3;
-//import static org.whispersystems.signalservice.internal.push.ProvisioningProtos.*;
+// import static org.whispersystems.signalservice.internal.push.ProvisioningProtos.*;
 import static signalservice.DeviceMessages.*;
 
 public class ProvisioningCipher {
@@ -57,14 +57,7 @@ public class ProvisioningCipher {
         boolean macMatch = Arrays.equals(calcMac, mach.toByteArray());
         System.err.println("Mac match? "+macMatch);
   
-//            await verifyHmacSha256(
-//      typedArrayToArrayBuffer(ivAndCiphertext),
-//      keys[1],
-//      typedArrayToArrayBuffer(mac),
-//      32
-//    );
-//Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-        Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding");
+        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
         IvParameterSpec ivSpec = new IvParameterSpec(iv.toByteArray());
         cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(keys[0], "AES"), ivSpec);
         byte[] doFinal = cipher.doFinal(cipherText.toByteArray());
