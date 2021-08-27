@@ -12,16 +12,12 @@ import org.whispersystems.websocket.messages.WebSocketResponseMessage;
 
 import java.io.IOException;
 import java.net.URI;
-import java.net.URL;
-import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Optional;
 import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
-import org.whispersystems.libsignal.InvalidKeyException;
-import org.whispersystems.signalservice.internal.push.ProvisioningProtos;
 
 import static signalservice.DeviceMessages.*;
 
@@ -81,16 +77,11 @@ public class Client implements WebSocketInterface.Listener {
                 ex.printStackTrace();
             }
             System.err.println("MSG = " + uuid);
-            String ourPubKey = Base64.getEncoder().encodeToString(this.provisioningCipher.ourKeyPair.getPublicKey().getPublicKeyBytes());
-            System.err.println("ourpubkey = "+ourPubKey);
-            String oldourPubKey="BSeWobIJRv9cI%2FKhwloWWYqO2mBYC7n2Ntp2uIs4uVgp";
-            System.err.println("ourpubkey2 = "+oldourPubKey);
-ourPubKey = oldourPubKey;
-            String url = "tsdevice:/?uuid=" + uuid + "&pub_key="
-                    + URLEncoder.encode(ourPubKey, StandardCharsets.UTF_8);
-        //    String url = "tsdevice:/?uuid=" + uuid + "&pub_key=BSeWobIJRv9cI%2FKhwloWWYqO2mBYC7n2Ntp2uIs4uVgp";
+            String ourPubKey = Base64.getEncoder().encodeToString(this.provisioningCipher.ourKeyPair.getPublicKey().serialize());
+            ourPubKey = URLEncoder.encode(ourPubKey, StandardCharsets.UTF_8);
+            String url = "tsdevice:/?uuid=" + uuid + "&pub_key="+ourPubKey;
             System.err.println("URL = "+url);
-        elita.setProvisioningURL(url);
+            elita.setProvisioningURL(url);
         } else if ("/v1/message".equals(path)) {
             try {
                 ProvisionEnvelope envelope = ProvisionEnvelope.parseFrom(data);
