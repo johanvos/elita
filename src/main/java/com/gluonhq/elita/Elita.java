@@ -11,6 +11,7 @@ import javafx.scene.image.ImageView;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import signalservice.DeviceMessages.ProvisionMessage;
 
 /**
  *
@@ -20,6 +21,7 @@ public class Elita extends Application {
 
     StackPane root = new StackPane();
     private Client client;
+    private ProvisionMessage provisionResult;
     @Override
     public void start(Stage primaryStage) throws Exception {
         Scene scene = new Scene(root, 350, 350);
@@ -40,6 +42,11 @@ public class Elita extends Application {
         t.start();
     }
     
+    public void gotProvisionMessage(ProvisionMessage provisionResult) {
+        this.provisionResult = provisionResult;
+        askLocalName();
+    }
+    
     public void askLocalName() {
         Label l = new Label("Enter the name you want to use for this device:");
         TextField tf = new TextField();
@@ -51,7 +58,7 @@ public class Elita extends Application {
         });
         btn.setOnAction(b -> {
             String name = tf.getText();
-            client.createAccount(name);
+            client.createAccount(provisionResult, name);
         });
     }
     
