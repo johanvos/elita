@@ -35,8 +35,13 @@ public class Elita extends Application {
     private void startClientFlow() {
         Thread t = new Thread() {
             @Override public void run() {
+                try {
                 client = new Client(Elita.this);
                 client.startup();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    System.exit(0);
+                }
             }
         };
         t.start();

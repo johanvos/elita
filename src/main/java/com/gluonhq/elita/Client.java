@@ -1,6 +1,7 @@
 package com.gluonhq.elita;
 
 import com.gluonhq.elita.model.Account;
+import com.gluonhq.elita.storage.User;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import org.eclipse.jetty.util.log.Log;
@@ -32,10 +33,11 @@ public class Client implements WebSocketInterface.Listener {
     final WebSocketInterface webSocket;
     private final ProvisioningCipher provisioningCipher;
     private final SecureRandom sr;
-    final SocketManager socketManager;
+    SocketManager socketManager;
     final WebAPI webApi;
 
     private final Elita elita;
+    HttpClient httpClient;
     
     public Client(Elita elita) {
         this.elita = elita;
@@ -47,10 +49,11 @@ public class Client implements WebSocketInterface.Listener {
     }
 
     public void startup() {
+        this.socketManager = this.webApi.connect(User.getUserName(), User.getPassword());
+        this.webApi.getConfig();
         SslContextFactory scf = new SslContextFactory(true);
-        HttpClient httpClient = new HttpClient(scf);
+        httpClient = new HttpClient(scf);
         WebSocketClient holder = new WebSocketClient(httpClient);
-
         StdErrLog logger = new StdErrLog();
         logger.setLevel(StdErrLog.LEVEL_OFF);
         Log.setLog(logger);
@@ -60,9 +63,11 @@ public class Client implements WebSocketInterface.Listener {
             httpClient.start();
             holder.start();
             URI uri = new URI("wss://textsecure-service.whispersystems.org/v1/websocket/provisioning/?agent=OWD&version=5.14.0");
+//            URI uri = new URI("wss://textsecure-service.whispersystems.org?agent=OWD&version=5.14.0");
             ClientUpgradeRequest request = new ClientUpgradeRequest();
             holder.connect(webSocket, uri, request);
             System.err.println("Websocket connected");
+         //   webSocket.sendRequest(1, "GET", "/v1/websocket/provisioning");
         //    Thread.sleep(10000);
         } catch (Throwable t) {
             t.printStackTrace();
