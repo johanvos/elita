@@ -14,17 +14,30 @@ import java.io.IOException;
 public class SocketManager {
     
     private Client client;
+    private final String url;
+    private final String ca;
+    private final String version;
+    private final String proxyUrl;
     
-    public SocketManager(Client client) {
+    public SocketManager(Client client, String url, String ca, String version, String proxyUrl) {
+        this.url = url;
+        this.ca = ca;
+        this.version = version;
+        this.proxyUrl = proxyUrl;
         this.client = client;
     }
     
     public void authenticate (String username, String password) {
+        System.err.println("SocketManager.authenticate called");
         if (username.isEmpty() && password.isEmpty()) {
             System.err.println("SocketManager authenticate was called without credentials");
             return;
         }
         System.err.println("SOCKETMANAGER AUTHENTICATE NYI");
+        
+    }
+    
+    private void getUnauthenticatedResource() {
         
     }
     

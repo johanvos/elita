@@ -27,6 +27,8 @@ import signalservice.DeviceMessages.*;
 @WebSocket(maxTextMessageSize = 64 * 1024)
 public class Client implements WebSocketInterface.Listener {
 
+    static final String SERVER_NAME = "https://textsecure-service.whispersystems.org";
+    
     final WebSocketInterface webSocket;
     private final ProvisioningCipher provisioningCipher;
     private final SecureRandom sr;
@@ -37,11 +39,11 @@ public class Client implements WebSocketInterface.Listener {
     
     public Client(Elita elita) {
         this.elita = elita;
+        this.webApi = new WebAPI(this, SERVER_NAME);
         this.webSocket = new WebSocketInterface();
         this.provisioningCipher = new ProvisioningCipher();
         this.sr = new SecureRandom();
-        this.socketManager = new SocketManager(this);
-        this.webApi = new WebAPI(this);
+        this.socketManager = new SocketManager(this, null, null, null, null);
     }
 
     public void startup() {
@@ -60,7 +62,8 @@ public class Client implements WebSocketInterface.Listener {
             URI uri = new URI("wss://textsecure-service.whispersystems.org/v1/websocket/provisioning/?agent=OWD&version=5.14.0");
             ClientUpgradeRequest request = new ClientUpgradeRequest();
             holder.connect(webSocket, uri, request);
-            Thread.sleep(10000);
+            System.err.println("Websocket connected");
+        //    Thread.sleep(10000);
         } catch (Throwable t) {
             t.printStackTrace();
         }
@@ -156,13 +159,13 @@ public class Client implements WebSocketInterface.Listener {
 
     @Override
     public void onClosed() {
-        System.err.println("onClosed()");
+        System.err.println("[Client] WebSocket onClosed() called");
     }
 
     @Override
     public void onConnected() {
         try {
-            System.err.println("Connected!");
+            System.err.println("[Client] WebSocket onConnected called");
         } catch (Exception e) {
             e.printStackTrace();
         }

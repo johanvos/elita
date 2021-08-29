@@ -16,10 +16,22 @@ import java.util.Map;
 public class WebAPI {
     
     private final Client client;
-    public WebAPI (Client c) {
+    private final String url;
+    private SocketManager socketManager;
+    
+    public WebAPI (Client c, String url) {
         this.client = c;
+        this.url = url;
     }
     
+    public void initialize() {
+        System.err.println("Initialize WebAPI");
+    }
+    
+    public void connect (String username, String password) {
+        this.socketManager = new SocketManager(client, url, null, null, null);
+        socketManager.authenticate(username, password);
+    }
     public void confirmCode(String number, String code, String newPassword, 
         int registrationId, String deviceName) {
         String call = (deviceName  != null) ? "devices" : "accounts";
