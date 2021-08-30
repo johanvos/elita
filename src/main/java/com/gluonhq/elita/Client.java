@@ -29,7 +29,7 @@ import signalservice.DeviceMessages.*;
 public class Client implements WebSocketInterface.Listener {
 
     static final String SERVER_NAME = "https://textsecure-service.whispersystems.org";
-    
+
     final WebSocketInterface webSocket;
     private final ProvisioningCipher provisioningCipher;
     private final SecureRandom sr;
@@ -38,19 +38,21 @@ public class Client implements WebSocketInterface.Listener {
 
     private final Elita elita;
     HttpClient httpClient;
-    
+
     public Client(Elita elita) {
         this.elita = elita;
         this.webApi = new WebAPI(this, SERVER_NAME);
         this.webSocket = new WebSocketInterface();
         this.provisioningCipher = new ProvisioningCipher();
         this.sr = new SecureRandom();
-        this.socketManager = new SocketManager(this, null, null, null, null);
+        //  this.socketManager = new SocketManager(this, null, null, null, null);
     }
 
     public void startup() {
         this.socketManager = this.webApi.connect(User.getUserName(), User.getPassword());
         this.webApi.getConfig();
+     this.webApi.provision();
+     /*
         SslContextFactory scf = new SslContextFactory(true);
         httpClient = new HttpClient(scf);
         WebSocketClient holder = new WebSocketClient(httpClient);
@@ -67,36 +69,37 @@ public class Client implements WebSocketInterface.Listener {
             ClientUpgradeRequest request = new ClientUpgradeRequest();
             holder.connect(webSocket, uri, request);
             System.err.println("Websocket connected");
-         //   webSocket.sendRequest(1, "GET", "/v1/websocket/provisioning");
-        //    Thread.sleep(10000);
+            //   webSocket.sendRequest(1, "GET", "/v1/websocket/provisioning");
+            //    Thread.sleep(10000);
         } catch (Throwable t) {
             t.printStackTrace();
         }
+*/
     }
 
     public void askLocalName() {
-        
+
     }
-    
-    private void confirmCode(String number, String code, String newPassword, 
-        int registrationId, String deviceName) {
-        String call = (deviceName  != null) ? "devices" : "accounts";
+
+    private void confirmCode(String number, String code, String newPassword,
+            int registrationId, String deviceName) {
+        String call = (deviceName != null) ? "devices" : "accounts";
         String urlPrefix = (deviceName != null) ? "/" : "/code";
         socketManager.authenticate("", "");
         System.err.println("Confirm code");
     }
-    
+
     public void createAccount(ProvisionMessage pm, String deviceName) {
-        System.err.println("Creating device "+deviceName);
+        System.err.println("Creating device " + deviceName);
         byte[] b = new byte[16];
         new SecureRandom().nextBytes(b);
         String password = new String(b, StandardCharsets.UTF_8);
-        password = password.substring(0, password.length()-2);
+        password = password.substring(0, password.length() - 2);
         int regid = new SecureRandom().nextInt(16384) & 0x3fff;
-        webApi.confirmCode(pm.getNumber(),pm.getProvisioningCode(), password, regid, deviceName);
+        webApi.confirmCode(pm.getNumber(), pm.getProvisioningCode(), password, regid, deviceName);
         System.err.println("");
         Account account = new Account(pm.getNumber(), pm.getProvisioningCode());
-      //  Account account = new Account();
+        //  Account account = new Account();
 //          await createAccount(
 //        provisionMessage.number,
 //        provisionMessage.provisioningCode,
@@ -112,12 +115,11 @@ public class Client implements WebSocketInterface.Listener {
 //      await this.server.registerKeys(keys);
 //      await this.confirmKeys(keys);
 //      await this.registrationDone();
-}
-      
-    @Override
-    public void onReceivedRequest(WebSocketRequestMessage requestMessage) {
+    }
+
+    public void provisioningMessageReceived(WebSocketRequestMessage requestMessage) {
         String path = requestMessage.getPath();
-        System.out.println("[JVDBG] Got request from path " + path);
+        System.out.println("[JVDBG] GOT request from path " + path);
         Optional<byte[]> body = requestMessage.getBody();
         byte[] data = body.get();
         if ("/v1/address".equals(path)) {
@@ -131,21 +133,27 @@ public class Client implements WebSocketInterface.Listener {
             System.err.println("MSG = " + uuid);
             String ourPubKey = Base64.getEncoder().encodeToString(this.provisioningCipher.ourKeyPair.getPublicKey().serialize());
             ourPubKey = URLEncoder.encode(ourPubKey, StandardCharsets.UTF_8);
-            String url = "tsdevice:/?uuid=" + uuid + "&pub_key="+ourPubKey;
-            System.err.println("URL = "+url);
+            String url = "tsdevice:/?uuid=" + uuid + "&pub_key=" + ourPubKey;
+            System.err.println("URL = " + url);
             elita.setProvisioningURL(url);
         } else if ("/v1/message".equals(path)) {
             try {
                 ProvisionEnvelope envelope = ProvisionEnvelope.parseFrom(data);
                 ByteString publicKey = envelope.getPublicKey();
                 ProvisionMessage pm = provisioningCipher.decrypt(envelope);
-                System.err.println("Got pm: "+pm);
+                System.err.println("Got pm: " + pm);
                 elita.gotProvisionMessage(pm);
-            //  const deviceName = await confirmNumber(provisionMessage.number);
+                //  const deviceName = await confirmNumber(provisionMessage.number);
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
         }
+    }
+
+    @Override
+    public void onReceivedRequest(WebSocketRequestMessage requestMessage) {
+        provisioningMessageReceived(requestMessage);
+
         try {
             webSocket.sendResponse(requestMessage.getRequestId(), 200, "OK", "world!".getBytes());
         } catch (IOException e) {
@@ -171,8 +179,14 @@ public class Client implements WebSocketInterface.Listener {
     public void onConnected() {
         try {
             System.err.println("[Client] WebSocket onConnected called");
+            Thread.dumpStack();
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    @Override
+    public void attached(WebSocketInterface parent) {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 }

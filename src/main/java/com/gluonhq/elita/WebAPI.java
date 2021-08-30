@@ -31,6 +31,10 @@ public class WebAPI {
         System.err.println("Initialize WebAPI");
     }
     
+    public void provision() {
+        this.socketManager.createProvisioning();
+    }
+    
     public SocketManager connect (String username, String password) {
         System.err.println("WebAPI connect called with url "+url);
         this.socketManager = new SocketManager(client, url, null, "5.14.0", null);
@@ -40,7 +44,7 @@ public class WebAPI {
 
     public void getConfig() {
         Map params = new HashMap();
-        params.put("path", "v1/config");
+        params.put("path", "/v1/config");
         params.put("verb", "GET");
         params.put("responseType", "json");
         try {
