@@ -51,7 +51,7 @@ public class Client implements WebSocketInterface.Listener {
     public void startup() {
         this.socketManager = this.webApi.connect(User.getUserName(), User.getPassword());
         this.webApi.getConfig();
-     this.webApi.provision();
+        this.webApi.provision();
      /*
         SslContextFactory scf = new SslContextFactory(true);
         httpClient = new HttpClient(scf);

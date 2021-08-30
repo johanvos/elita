@@ -94,21 +94,7 @@ public class WebSocketInterface {
 //        headers.add("user-agent:Signal-Desktop/5.14.0 Linux");
 //        headers.add("x-signal-agent:OWD");
         WebSocketMessage message = factory.createRequest(Optional.of(id), verb, path, headers, Optional.empty());
-        System.err.println("ready to send message " + message);
-        System.err.println("TYPE = " + message.getType());
-        System.err.println("ba = "+message.toByteArray() + " and length = "+message.toByteArray().length);
-        System.err.println("session = "+session);
-        byte[] or = message.toByteArray();
-        System.err.print("BYTEX =  [");
-        for (byte bb : or) System.err.print(bb + ", ");
-        System.err.println("]");
-        byte[] b = {        8,1,18,19,10,3,71,69,84,18,10,47,118,49,47,99,111,110,102,105,103,32,1};
-
-        System.err.println("BYTES = "+ Bytes.asList(message.toByteArray()));
-        System.err.println("PYTES = "+ Bytes.asList(b));
         session.getRemote().sendBytes(ByteBuffer.wrap(message.toByteArray()));
-//        System.err.println("orsize = "+or.length+" and bsize = "+b.length);   
-//  session.getRemote().sendBytes(ByteBuffer.wrap(or));
     }
 
     public void sendResponse(long id, int code, String message, byte[] body) throws IOException {
