@@ -89,11 +89,14 @@ public class WebSocketInterface {
     }
 
     public void sendRequest(long id, String verb, String path) throws IOException {
-        List<String> headers = new LinkedList();
-//        headers.add("content-type:application/json;charset=utf-8");
-//        headers.add("user-agent:Signal-Desktop/5.14.0 Linux");
-//        headers.add("x-signal-agent:OWD");
-        WebSocketMessage message = factory.createRequest(Optional.of(id), verb, path, headers, Optional.empty());
+        sendRequest (id, verb, path, new LinkedList<String>(), null);
+    }
+
+    public void sendRequest(long id, String verb, String path, List<String> headers, byte[] body) throws IOException {
+        System.err.println("SendRequest, id = "+id+", verb = "+verb+", path = " +path+", headers = "+headers+", bodysize = "+(body == null ? 0 : body.length));
+        WebSocketMessage message = 
+                factory.createRequest(Optional.of(id), verb, path, headers, Optional.ofNullable(body));
+        System.err.println("BYTES = "+Bytes.asList(message.toByteArray()));
         session.getRemote().sendBytes(ByteBuffer.wrap(message.toByteArray()));
     }
 

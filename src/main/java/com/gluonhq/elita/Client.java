@@ -1,5 +1,6 @@
 package com.gluonhq.elita;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.gluonhq.elita.model.Account;
 import com.gluonhq.elita.storage.User;
 import com.google.protobuf.ByteString;
@@ -89,7 +90,7 @@ public class Client implements WebSocketInterface.Listener {
         System.err.println("Confirm code");
     }
 
-    public void createAccount(ProvisionMessage pm, String deviceName) {
+    public void createAccount(ProvisionMessage pm, String deviceName) throws JsonProcessingException {
         System.err.println("Creating device " + deviceName);
         byte[] b = new byte[16];
         new SecureRandom().nextBytes(b);

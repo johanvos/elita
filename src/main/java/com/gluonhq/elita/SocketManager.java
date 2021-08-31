@@ -5,20 +5,17 @@
  */
 package com.gluonhq.elita;
 
-import com.google.protobuf.ByteString;
-import com.google.protobuf.InvalidProtocolBufferException;
 import java.io.IOException;
 import java.net.URI;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.Base64;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.eclipse.jetty.client.HttpClient;
+import org.eclipse.jetty.http.HttpField;
+import org.eclipse.jetty.http.HttpHeader;
 import org.eclipse.jetty.util.log.Log;
 import org.eclipse.jetty.util.log.StdErrLog;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
@@ -26,7 +23,6 @@ import org.eclipse.jetty.websocket.client.ClientUpgradeRequest;
 import org.eclipse.jetty.websocket.client.WebSocketClient;
 import org.whispersystems.websocket.messages.WebSocketRequestMessage;
 import org.whispersystems.websocket.messages.WebSocketResponseMessage;
-import signalservice.DeviceMessages;
 
 /**
  *
@@ -95,6 +91,7 @@ public class SocketManager {
         WebSocketInterface answer = new WebSocketInterface();
         SslContextFactory scf = new SslContextFactory(true);
         httpClient = new HttpClient(scf);
+        httpClient.setUserAgentField(new HttpField(HttpHeader.USER_AGENT,"Signal-Desktop/5.14.0 Linux"));
         WebSocketClient holder = new WebSocketClient(httpClient);
 
         Thread t = new Thread() {
@@ -136,12 +133,17 @@ public class SocketManager {
     }
 
     public void fetch(Map<String, String> params) throws IOException {
+        fetch (params, new LinkedList<String>());
+    }
+        
+    public void fetch(Map<String, String> params, List<String> headers) throws IOException {
         String verb = params.getOrDefault("verb", "PUT");
         String path = params.get("path");
+        String body = params.get("body");
         System.err.println("send request to "+cnt+", " + verb+", "+path);
         WebSocketInterface client = getUnauthenticatedClient();
         System.err.println("Ready to send request to client "+client);
-        client.sendRequest(cnt, verb, path);
+        client.sendRequest(cnt, verb, path, headers, body == null? null: body.getBytes(StandardCharsets.UTF_8));
         cnt++;
         System.err.println("Done sending request");
     }

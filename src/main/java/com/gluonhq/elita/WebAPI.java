@@ -5,8 +5,15 @@
  */
 package com.gluonhq.elita;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.util.Base64;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -55,19 +62,34 @@ public class WebAPI {
     }
     
     public void confirmCode(String number, String code, String newPassword, 
-        int registrationId, String deviceName) {
+        int registrationId, String deviceName) throws JsonProcessingException {
         String call = (deviceName  != null) ? "devices" : "accounts";
         String urlPrefix = (deviceName != null) ? "/" : "/code";
         this.socketManager.authenticate("", "");
         System.err.println("Confirm code");
+
+        String body = getDeviceMapData(deviceName, registrationId);
+        System.err.println("body = "+body);
+        String username = number;
+        String pwd = newPassword;
         Map params = new HashMap();
-        params.put("path", "v1/" + call);
+        List<String> headers = new LinkedList();
+        String authbase = username+":"+pwd;
+        String basicAuth = Base64.getEncoder().encodeToString(authbase.getBytes());
+        System.err.println("result of "+ authbase+" conv = "+ basicAuth);
+        headers.add("Authorization:Basic "+basicAuth);
+        headers.add("content-type:application/json;charset=utf-8");
+        headers.add("User-Agent:Signal-Desktop/5.14.0 Linux");
+        headers.add("x-signal-agent:OWD");
+      
+        params.put("path", "/v1/" + call+"/"+code);
         params.put("verb", "PUT");
+        params.put("body", body);
         params.put("httpType", "PUT");
         params.put("responseType", "json");
         params.put("urlParameters", urlPrefix + code);
         try {
-            this.socketManager.fetch(params);
+            this.socketManager.fetch(params, headers);
          //   _ajax(params);
         } catch (Exception e) {
             e.printStackTrace();
@@ -92,5 +114,28 @@ public class WebAPI {
         }
         System.err.println("PromiseAjax, url = "+url);
         this.socketManager.fetch("PUT", url);
+    }
+    
+    private String getDeviceMapData(String name, int registrationId) throws JsonProcessingException {
+        ObjectMapper mapper = new ObjectMapper();
+
+        ObjectNode capabilities = mapper.createObjectNode();
+        capabilities.put("announcementGroup", true);
+        capabilities.put("gv2-3", true);
+        capabilities.put("gv1-migration", true);
+        capabilities.put("senderKey", true);
+
+        ObjectNode jsonData = mapper.createObjectNode();
+        System.err.println("DOOH");
+      //  Thread.dumpStack();
+        jsonData.set("capabilities", capabilities);
+        jsonData.put("fetchesMessages", true);
+        jsonData.put("name", name);
+        jsonData.put("registrationId", registrationId);
+        jsonData.put("supportsSms", false);
+        jsonData.put("unrestrictedUnidentifiedAccess", false);
+        String answer = mapper.writeValueAsString(jsonData);
+        return answer;
+
     }
 }
