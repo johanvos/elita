@@ -1,6 +1,8 @@
 package com.gluonhq.elita;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gluonhq.elita.crypto.KeyUtil;
 import com.gluonhq.elita.model.Account;
 import com.gluonhq.elita.storage.User;
 import com.google.protobuf.ByteString;
@@ -19,9 +21,18 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Optional;
 import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
+import org.whispersystems.libsignal.IdentityKey;
+import org.whispersystems.libsignal.IdentityKeyPair;
+import org.whispersystems.libsignal.state.PreKeyRecord;
+import org.whispersystems.libsignal.state.SignedPreKeyRecord;
+import org.whispersystems.signalservice.api.push.SignedPreKeyEntity;
+import org.whispersystems.signalservice.internal.push.PreKeyEntity;
+import org.whispersystems.signalservice.internal.push.PreKeyState;
 
 //import static org.whispersystems.signalservice.internal.push.ProvisioningProtos.*;
 import signalservice.DeviceMessages.*;
@@ -30,7 +41,7 @@ import signalservice.DeviceMessages.*;
 public class Client implements WebSocketInterface.Listener {
 
     static final String SERVER_NAME = "https://textsecure-service.whispersystems.org";
-
+static final String PREKEY_PATH = "/v2/keys/%s";
     final WebSocketInterface webSocket;
     private final ProvisioningCipher provisioningCipher;
     private final SecureRandom sr;
@@ -53,44 +64,9 @@ public class Client implements WebSocketInterface.Listener {
         this.socketManager = this.webApi.connect(User.getUserName(), User.getPassword());
         this.webApi.getConfig();
         this.webApi.provision();
-     /*
-        SslContextFactory scf = new SslContextFactory(true);
-        httpClient = new HttpClient(scf);
-        WebSocketClient holder = new WebSocketClient(httpClient);
-        StdErrLog logger = new StdErrLog();
-        logger.setLevel(StdErrLog.LEVEL_OFF);
-        Log.setLog(logger);
-
-        try {
-            webSocket.setListener(this);
-            httpClient.start();
-            holder.start();
-            URI uri = new URI("wss://textsecure-service.whispersystems.org/v1/websocket/provisioning/?agent=OWD&version=5.14.0");
-//            URI uri = new URI("wss://textsecure-service.whispersystems.org?agent=OWD&version=5.14.0");
-            ClientUpgradeRequest request = new ClientUpgradeRequest();
-            holder.connect(webSocket, uri, request);
-            System.err.println("Websocket connected");
-            //   webSocket.sendRequest(1, "GET", "/v1/websocket/provisioning");
-            //    Thread.sleep(10000);
-        } catch (Throwable t) {
-            t.printStackTrace();
-        }
-*/
     }
 
-    public void askLocalName() {
-
-    }
-
-    private void confirmCode(String number, String code, String newPassword,
-            int registrationId, String deviceName) {
-        String call = (deviceName != null) ? "devices" : "accounts";
-        String urlPrefix = (deviceName != null) ? "/" : "/code";
-        socketManager.authenticate("", "");
-        System.err.println("Confirm code");
-    }
-
-    public void createAccount(ProvisionMessage pm, String deviceName) throws JsonProcessingException {
+    public void createAccount(ProvisionMessage pm, String deviceName) throws JsonProcessingException, IOException {
         System.err.println("Creating device " + deviceName);
         byte[] b = new byte[16];
         new SecureRandom().nextBytes(b);
@@ -98,19 +74,10 @@ public class Client implements WebSocketInterface.Listener {
         password = password.substring(0, password.length() - 2);
         int regid = new SecureRandom().nextInt(16384) & 0x3fff;
         webApi.confirmCode(pm.getNumber(), pm.getProvisioningCode(), password, regid, deviceName);
-        System.err.println("");
+        System.err.println("got code");
         Account account = new Account(pm.getNumber(), pm.getProvisioningCode());
-        //  Account account = new Account();
-//          await createAccount(
-//        provisionMessage.number,
-//        provisionMessage.provisioningCode,
-//        provisionMessage.identityKeyPair,
-//        provisionMessage.profileKey,
-//        deviceName,
-//        provisionMessage.userAgent,
-//        provisionMessage.readReceipts,
-//        { uuid: provisionMessage.uuid }
-//      );
+        generateAndRegisterKeys();
+        
 //      await clearSessionsAndPreKeys();
 //      const keys = await generateKeys();
 //      await this.server.registerKeys(keys);
@@ -190,4 +157,37 @@ public class Client implements WebSocketInterface.Listener {
     public void attached(WebSocketInterface parent) {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
+
+    public void generateAndRegisterKeys() throws IOException {
+        IdentityKeyPair identityKey = KeyUtil.getIdentityKeyPair();
+        SignedPreKeyRecord signedPreKey = KeyUtil.generateSignedPreKey(identityKey, true);
+        List<PreKeyRecord> records = KeyUtil.generatePreKeys(100);
+        registerPreKeys(identityKey.getPublicKey(), signedPreKey, records);
+    }
+    
+    public void registerPreKeys(IdentityKey identityKey,
+            SignedPreKeyRecord signedPreKey,
+            List<PreKeyRecord> records)
+            throws IOException {
+
+        List<PreKeyEntity> entities = new LinkedList<>();
+
+        for (PreKeyRecord record : records) {
+            PreKeyEntity entity = new PreKeyEntity(record.getId(),
+                    record.getKeyPair().getPublicKey());
+
+            entities.add(entity);
+        }
+
+        SignedPreKeyEntity signedPreKeyEntity = new SignedPreKeyEntity(signedPreKey.getId(),
+                signedPreKey.getKeyPair().getPublicKey(),
+                signedPreKey.getSignature());
+
+                ObjectMapper mapper = new ObjectMapper();
+
+        String jsonData = mapper.writeValueAsString(new PreKeyState(entities, signedPreKeyEntity, identityKey));
+        this.webApi.fetch(String.format(PREKEY_PATH, ""), "PUT",jsonData);
+    }
+
+
 }

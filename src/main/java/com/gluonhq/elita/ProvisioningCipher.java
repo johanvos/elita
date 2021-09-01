@@ -1,4 +1,5 @@
 package com.gluonhq.elita;
+import com.gluonhq.elita.crypto.KeyUtil;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import java.security.InvalidAlgorithmParameterException;
@@ -68,6 +69,7 @@ public class ProvisioningCipher {
         ECPublicKey publicKey = privateKey.publicKey();
         ECKeyPair keyPair = new ECKeyPair(publicKey, privateKey);
         System.err.println("identitykp = "+ keyPair);
+        KeyUtil.setIdentityKeyPair(keyPair);
         return pm;
         
 //    const privKey = provisionMessage.identityKeyPrivate;

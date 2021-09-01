@@ -9,14 +9,18 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
-import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.whispersystems.websocket.messages.WebSocketResponseMessage;
 
 /**
  *
@@ -88,34 +92,42 @@ public class WebAPI {
         params.put("httpType", "PUT");
         params.put("responseType", "json");
         params.put("urlParameters", urlPrefix + code);
+        CountDownLatch cdl = new CountDownLatch(1);
+        Consumer<WebSocketResponseMessage> f = message -> {
+            System.err.println("Result for registerDevice got in!");
+            if (message.getStatus() == 200) {
+                String res = new String(message.getBody().get(), StandardCharsets.UTF_8);
+                System.err.println("result: "+res);
+            }
+           cdl.countDown();
+        };
         try {
-            this.socketManager.fetch(params, headers);
-         //   _ajax(params);
+            this.socketManager.fetch(params, headers, f);
+            
         } catch (Exception e) {
             e.printStackTrace();
         }
+         try {
+                cdl.await(10, TimeUnit.SECONDS);
+            } catch (InterruptedException ex) {
+                Logger.getLogger(WebAPI.class.getName()).log(Level.SEVERE, null, ex);
+            }
     }
-    
-    private void _ajax(Map params) throws IOException {        
-         _outerAjax(null, params);
+
+    void fetch(String url, String verb, String jsonData) throws IOException {
+        List<String> headers = new LinkedList<>();
+       //    headers.add("Authorization:Basic "+basicAuth);
+        headers.add("content-type:application/json;charset=utf-8");
+        headers.add("User-Agent:Signal-Desktop/5.14.0 Linux");
+        headers.add("x-signal-agent:OWD");
+      
+        Map<String, String> params = new HashMap<>();
+        params.put("path", url);
+        params.put("verb", "PUT");
+        params.put("body", jsonData);
+        this.socketManager.fetch(params, headers, c -> {System.err.println("SENT KEYS");});
     }
-    
-    private void _outerAjax(String url, Map params) throws IOException {
-        _retryAjax(url, params);
-    }
-    
-    private void _retryAjax(String url, Map params) throws IOException {
-        _promiseAjax(url, params);
-    }
-    
-    private void _promiseAjax(String url, Map params) throws IOException {
-        if (url == null) {
-            url = params.get("host")+"/"+params.get("path");
-        }
-        System.err.println("PromiseAjax, url = "+url);
-        this.socketManager.fetch("PUT", url);
-    }
-    
+
     private String getDeviceMapData(String name, int registrationId) throws JsonProcessingException {
         ObjectMapper mapper = new ObjectMapper();
 

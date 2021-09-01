@@ -74,7 +74,6 @@ public class WebSocketInterface {
         System.out.println("[JVDBG] onMessage");
         try {
             WebSocketMessage message = factory.parseMessage(buffer, offset, length);
-
             if (message.getType() == WebSocketMessage.Type.REQUEST_MESSAGE) {
                 listener.onReceivedRequest(message.getRequestMessage());
             } else if (message.getType() == WebSocketMessage.Type.RESPONSE_MESSAGE) {

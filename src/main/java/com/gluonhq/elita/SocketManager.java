@@ -8,9 +8,11 @@ package com.gluonhq.elita;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.eclipse.jetty.client.HttpClient;
@@ -37,8 +39,11 @@ public class SocketManager {
     private final String ca;
     private final String version;
     private final String proxyUrl;
-    //private WebSocketInterface webSocket;
     private HttpClient httpClient;
+    
+        private final Map<Long, Consumer<WebSocketResponseMessage>> pending = new HashMap<>();
+
+    long requestCounter = 0;
 
     public SocketManager(Client client, String url, String ca, String version, String proxyUrl) {
         this.url = url;
@@ -122,38 +127,47 @@ public class SocketManager {
         return answer;
     }
 
-    int cnt = 1;
-
-    public void fetch(String verb, String path) throws IOException {
-        // check authenticated or not
+    public long fetch(String verb, String path) throws IOException {
+        long answer = requestCounter;
+        requestCounter++;
         System.err.println("ready... verb = " + verb);
         WebSocketInterface client = getUnauthenticatedClient();
-        System.err.println("ready to send request to client "+client);
-        client.sendRequest(cnt++, verb, "v1/config");
+        System.err.println("ready to send request to client " + client);
+        client.sendRequest(answer, verb, "v1/config");
+        return answer;
     }
 
-    public void fetch(Map<String, String> params) throws IOException {
-        fetch (params, new LinkedList<String>());
+    public long fetch(Map<String, String> params) throws IOException {
+        return fetch (params, new LinkedList<String>(), null);
     }
         
-    public void fetch(Map<String, String> params, List<String> headers) throws IOException {
+    public long fetch(Map<String, String> params, List<String> headers, Consumer<WebSocketResponseMessage> callback) throws IOException {
+        long answer = requestCounter;
+        requestCounter++;
+        if (callback != null) {
+            pending.put(answer, callback);
+        }
         String verb = params.getOrDefault("verb", "PUT");
         String path = params.get("path");
         String body = params.get("body");
-        System.err.println("send request to "+cnt+", " + verb+", "+path);
+        System.err.println("send request to "+answer+", " + verb+", "+path);
         WebSocketInterface client = getUnauthenticatedClient();
         System.err.println("Ready to send request to client "+client);
-        client.sendRequest(cnt, verb, path, headers, body == null? null: body.getBytes(StandardCharsets.UTF_8));
-        cnt++;
+        client.sendRequest(answer, verb, path, headers, body == null? null: body.getBytes(StandardCharsets.UTF_8));
         System.err.println("Done sending request");
+        return answer;
     }
+
+    void sendRequest(String url, String verb, String jsonData) {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+    
 
     class WebSocketListener implements WebSocketInterface.Listener {
 
         private WebSocketInterface parent;
         
         public WebSocketListener() {
-            //  this.cdl = cdl;
         }
         
         @Override public void attached (WebSocketInterface wsi) {
@@ -168,9 +182,21 @@ public class SocketManager {
 
         }
 
+        /**
+         * When a response is received, the registered function for the corresponding
+         * request will be invoked synchronously.
+         * @param responseMessage 
+         */
         @Override
         public void onReceivedResponse(WebSocketResponseMessage responseMessage) {
-            System.err.println("[JVDBG] Got response: " + responseMessage.getStatus());
+            System.err.println("[JVDBG] Got response with status " + responseMessage.getStatus()+
+                    " and requestId = "+responseMessage.getRequestId());
+            long id = responseMessage.getRequestId();
+            if (pending.containsKey(id)) {
+                Consumer f = pending.get(id);
+                f.accept(responseMessage);
+                pending.remove(id);
+            }
             System.err.println("Message = " + responseMessage);
             if (responseMessage.getBody().isPresent()) {
                 System.err.println("[JVDBG] Got response body: " + new String(responseMessage.getBody().get()));
