@@ -186,7 +186,8 @@ static final String PREKEY_PATH = "/v2/keys/%s";
                 ObjectMapper mapper = new ObjectMapper();
 
         String jsonData = mapper.writeValueAsString(new PreKeyState(entities, signedPreKeyEntity, identityKey));
-        this.webApi.fetch(String.format(PREKEY_PATH, ""), "PUT",jsonData);
+       // NOT USING SocketManager, hence http
+        this.webApi.fetchHttp("PUT", String.format(PREKEY_PATH, ""),jsonData);
     }
 
 

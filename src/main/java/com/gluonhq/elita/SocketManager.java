@@ -12,10 +12,15 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.eclipse.jetty.client.HttpClient;
+import org.eclipse.jetty.client.api.ContentResponse;
+import org.eclipse.jetty.client.api.Request;
+import org.eclipse.jetty.client.util.StringContentProvider;
 import org.eclipse.jetty.http.HttpField;
 import org.eclipse.jetty.http.HttpHeader;
 import org.eclipse.jetty.util.log.Log;
@@ -33,7 +38,7 @@ import org.whispersystems.websocket.messages.WebSocketResponseMessage;
 public class SocketManager {
 
     static final String SERVER_NAME = "textsecure-service.whispersystems.org";
-
+static final String AGENT="Signal-Desktop/5.14.0 Linux";
     private Client client;
     private final String url;
     private final String ca;
@@ -96,9 +101,8 @@ public class SocketManager {
         WebSocketInterface answer = new WebSocketInterface();
         SslContextFactory scf = new SslContextFactory(true);
         httpClient = new HttpClient(scf);
-        httpClient.setUserAgentField(new HttpField(HttpHeader.USER_AGENT,"Signal-Desktop/5.14.0 Linux"));
+        httpClient.setUserAgentField(new HttpField(HttpHeader.USER_AGENT,AGENT));
         WebSocketClient holder = new WebSocketClient(httpClient);
-
         Thread t = new Thread() {
             @Override
             public void run() {
@@ -157,9 +161,40 @@ public class SocketManager {
         System.err.println("Done sending request");
         return answer;
     }
-
-    void sendRequest(String url, String verb, String jsonData) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    
+    public void httpRequest (String method, String path, String body, String ba) {
+      SslContextFactory scf = new SslContextFactory(true);
+        httpClient = new HttpClient(scf);
+        try {
+            httpClient.start();
+        } catch (Exception ex) {
+            Logger.getLogger(SocketManager.class.getName()).log(Level.SEVERE, null, ex);
+        }
+//        String[] headerArr = new String[headers.size()];
+//        headers.toArray(headerArr);
+        Request request = httpClient.newRequest(url)
+                .agent(AGENT)
+                .header(HttpHeader.AUTHORIZATION, "Basic " + ba)
+                .method(method).path(path)
+                .content (new StringContentProvider(body), "application/json");
+        System.err.println("sending "+request);
+        System.err.println("method = "+request.getMethod());
+        System.err.println("agent = " + request.getAgent());
+        System.err.println("path = "+request.getPath());
+        System.err.println("fp = "+request.getHost());
+        System.err.println("proto = "+request.getScheme());
+        System.err.println("query = "+request.getQuery());
+        try {
+          ContentResponse response = request.send();
+            System.err.println("got response: "+response);
+        } catch (InterruptedException ex) {
+            Logger.getLogger(SocketManager.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (TimeoutException ex) {
+            Logger.getLogger(SocketManager.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (ExecutionException ex) {
+            Logger.getLogger(SocketManager.class.getName()).log(Level.SEVERE, null, ex);
+        }
+                
     }
     
 

@@ -64,7 +64,7 @@ public class WebAPI {
             Logger.getLogger(WebAPI.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
-    
+    private String basicAuth;
     public void confirmCode(String number, String code, String newPassword, 
         int registrationId, String deviceName) throws JsonProcessingException {
         String call = (deviceName  != null) ? "devices" : "accounts";
@@ -81,6 +81,7 @@ public class WebAPI {
         String authbase = username+":"+pwd;
         String basicAuth = Base64.getEncoder().encodeToString(authbase.getBytes());
         System.err.println("result of "+ authbase+" conv = "+ basicAuth);
+        this.basicAuth = basicAuth;
         headers.add("Authorization:Basic "+basicAuth);
         headers.add("content-type:application/json;charset=utf-8");
         headers.add("User-Agent:Signal-Desktop/5.14.0 Linux");
@@ -113,8 +114,11 @@ public class WebAPI {
                 Logger.getLogger(WebAPI.class.getName()).log(Level.SEVERE, null, ex);
             }
     }
-
     void fetch(String url, String verb, String jsonData) throws IOException {
+        fetch (url, verb, jsonData, this.socketManager);
+    }
+    
+    void fetch(String url, String verb, String jsonData, SocketManager sm) throws IOException {
         List<String> headers = new LinkedList<>();
        //    headers.add("Authorization:Basic "+basicAuth);
         headers.add("content-type:application/json;charset=utf-8");
@@ -125,7 +129,7 @@ public class WebAPI {
         params.put("path", url);
         params.put("verb", "PUT");
         params.put("body", jsonData);
-        this.socketManager.fetch(params, headers, c -> {System.err.println("SENT KEYS");});
+        sm.fetch(params, headers, c -> {System.err.println("SENT KEYS");});
     }
 
     private String getDeviceMapData(String name, int registrationId) throws JsonProcessingException {
@@ -149,5 +153,9 @@ public class WebAPI {
         String answer = mapper.writeValueAsString(jsonData);
         return answer;
 
+    }
+
+    void fetchHttp(String method, String path, String jsonData) {
+        this.socketManager.httpRequest(method, path, jsonData, basicAuth);
     }
 }
