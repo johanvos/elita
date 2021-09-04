@@ -32,6 +32,10 @@ public class WebAPI {
     private final String url;
     private SocketManager socketManager;
     
+    private String uuid;
+    private String pwd;
+    private int deviceId;
+    
     public WebAPI (Client c, String url) {
         this.client = c;
         this.url = url;
@@ -64,9 +68,10 @@ public class WebAPI {
             Logger.getLogger(WebAPI.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
-    private String basicAuth;
+  //  private String basicAuth;
     public void confirmCode(String number, String code, String newPassword, 
-        int registrationId, String deviceName) throws JsonProcessingException {
+        int registrationId, String deviceName, String uuid) throws JsonProcessingException {
+        this.uuid = uuid;
         String call = (deviceName  != null) ? "devices" : "accounts";
         String urlPrefix = (deviceName != null) ? "/" : "/code";
         this.socketManager.authenticate("", "");
@@ -75,13 +80,16 @@ public class WebAPI {
         String body = getDeviceMapData(deviceName, registrationId);
         System.err.println("body = "+body);
         String username = number;
-        String pwd = newPassword;
+        this.pwd = newPassword;
         Map params = new HashMap();
         List<String> headers = new LinkedList();
         String authbase = username+":"+pwd;
         String basicAuth = Base64.getEncoder().encodeToString(authbase.getBytes());
         System.err.println("result of "+ authbase+" conv = "+ basicAuth);
-        this.basicAuth = basicAuth;
+        System.err.println("BA1 = "+basicAuth);
+     //   basicAuth="OWU2YzgxYjItYmJhZC00NzE3LTg1MDYtYjhmMmFiYzk0YTUyLjE3OmJ4OE9BQ1JjNXZ1U3ZOREhhYjlGYnc=";
+   //     this.basicAuth = basicAuth;
+        System.err.println("BA2 = "+basicAuth);
         headers.add("Authorization:Basic "+basicAuth);
         headers.add("content-type:application/json;charset=utf-8");
         headers.add("User-Agent:Signal-Desktop/5.14.0 Linux");
@@ -99,6 +107,10 @@ public class WebAPI {
             if (message.getStatus() == 200) {
                 String res = new String(message.getBody().get(), StandardCharsets.UTF_8);
                 System.err.println("result: "+res);
+                int c = res.indexOf(":");
+                String did = res.substring(c+1, res.length()-1);
+                this.deviceId = Integer.parseInt(did);
+                System.err.println("did = "+deviceId);
             }
            cdl.countDown();
         };
@@ -114,6 +126,7 @@ public class WebAPI {
                 Logger.getLogger(WebAPI.class.getName()).log(Level.SEVERE, null, ex);
             }
     }
+    
     void fetch(String url, String verb, String jsonData) throws IOException {
         fetch (url, verb, jsonData, this.socketManager);
     }
@@ -156,6 +169,10 @@ public class WebAPI {
     }
 
     void fetchHttp(String method, String path, String jsonData) {
+        String authbase = uuid+"."+deviceId+":"+pwd;
+        String basicAuth = Base64.getEncoder().encodeToString(authbase.getBytes());
+        System.err.println("result of "+ authbase+" conv = "+ basicAuth);
+        System.err.println("BA1 = "+basicAuth);
         this.socketManager.httpRequest(method, path, jsonData, basicAuth);
     }
 }

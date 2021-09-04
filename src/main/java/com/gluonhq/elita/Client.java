@@ -73,7 +73,7 @@ static final String PREKEY_PATH = "/v2/keys/%s";
         String password = new String(b, StandardCharsets.UTF_8);
         password = password.substring(0, password.length() - 2);
         int regid = new SecureRandom().nextInt(16384) & 0x3fff;
-        webApi.confirmCode(pm.getNumber(), pm.getProvisioningCode(), password, regid, deviceName);
+        webApi.confirmCode(pm.getNumber(), pm.getProvisioningCode(), password, regid, deviceName, pm.getUuid());
         System.err.println("got code");
         Account account = new Account(pm.getNumber(), pm.getProvisioningCode());
         generateAndRegisterKeys();

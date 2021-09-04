@@ -175,6 +175,7 @@ static final String AGENT="Signal-Desktop/5.14.0 Linux";
         Request request = httpClient.newRequest(url)
                 .agent(AGENT)
                 .header(HttpHeader.AUTHORIZATION, "Basic " + ba)
+                .header("X-Signal-Agent", "OWD")
                 .method(method).path(path)
                 .content (new StringContentProvider(body), "application/json");
         System.err.println("sending "+request);
@@ -184,9 +185,11 @@ static final String AGENT="Signal-Desktop/5.14.0 Linux";
         System.err.println("fp = "+request.getHost());
         System.err.println("proto = "+request.getScheme());
         System.err.println("query = "+request.getQuery());
+        System.err.println("headers = "+request.getHeaders());
         try {
           ContentResponse response = request.send();
             System.err.println("got response: "+response);
+            System.err.println("RESP " + response.getContentAsString());
         } catch (InterruptedException ex) {
             Logger.getLogger(SocketManager.class.getName()).log(Level.SEVERE, null, ex);
         } catch (TimeoutException ex) {
