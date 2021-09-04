@@ -57,13 +57,28 @@ public class WebAPI {
         return socketManager;
     }
 
+    public void onOffline() {
+        this.socketManager.onOffline();
+    }
+
+    public void onOnline() {
+        this.socketManager.onOnline();
+    }
+
     public void getConfig() {
         Map params = new HashMap();
         params.put("path", "/v1/config");
         params.put("verb", "GET");
         params.put("responseType", "json");
+        List<String> headers = getDefaultHeaders();
+        System.err.println("getConfig asked, uuid = "+uuid);
+        if (uuid != null) {
+            String authbase = uuid+"."+deviceId+":"+pwd;
+            String basicAuth = Base64.getEncoder().encodeToString(authbase.getBytes());
+            headers.add("Authorization:Basic "+basicAuth);
+        }
         try {
-            this.socketManager.fetch(params);
+            this.socketManager.fetch(params, headers, null);
         } catch (IOException ex) {
             Logger.getLogger(WebAPI.class.getName()).log(Level.SEVERE, null, ex);
         }
@@ -174,5 +189,17 @@ public class WebAPI {
         System.err.println("result of "+ authbase+" conv = "+ basicAuth);
         System.err.println("BA1 = "+basicAuth);
         this.socketManager.httpRequest(method, path, jsonData, basicAuth);
+    }
+    
+    List<String> getDefaultHeaders() {
+        List<String> answer = new LinkedList<>();
+        answer.add("content-type:application/json;charset=utf-8");
+        answer.add("User-Agent:Signal-Desktop/5.14.0 Linux");
+        answer.add("x-signal-agent:OWD");
+        return answer;
+    }
+
+    void authenticate() {
+        socketManager.authenticate(uuid+"."+deviceId, pwd);
     }
 }

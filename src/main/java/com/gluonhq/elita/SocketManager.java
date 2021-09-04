@@ -38,13 +38,18 @@ import org.whispersystems.websocket.messages.WebSocketResponseMessage;
 public class SocketManager {
 
     static final String SERVER_NAME = "textsecure-service.whispersystems.org";
-static final String AGENT="Signal-Desktop/5.14.0 Linux";
-    private Client client;
+    static final String AGENT="Signal-Desktop/5.14.0 Linux";
+    private final Client client;
     private final String url;
-    private final String ca;
-    private final String version;
-    private final String proxyUrl;
     private HttpClient httpClient;
+    
+    private String username = null;
+    private String password = null;
+    
+    WebSocketInterface unauthenticatedClient = null;
+    WebSocketInterface authenticatedClient = null;
+    
+    private boolean offline = false;
     
         private final Map<Long, Consumer<WebSocketResponseMessage>> pending = new HashMap<>();
 
@@ -52,46 +57,68 @@ static final String AGENT="Signal-Desktop/5.14.0 Linux";
 
     public SocketManager(Client client, String url, String ca, String version, String proxyUrl) {
         this.url = url;
-        this.ca = ca;
-        this.version = version;
-        this.proxyUrl = proxyUrl;
         this.client = client;
         System.err.println("SocketManager constructor called");
     }
 
-    public void authenticate(String username, String password) {
+    public void onOffline() {
+        System.err.println("[SocketManager] onOffline called");
+        this.offline = true;
+        if (this.authenticatedClient != null) this.authenticatedClient.stopSession();
+        if (this.unauthenticatedClient != null) this.unauthenticatedClient.stopSession();
+        this.authenticatedClient = null;
+        this.unauthenticatedClient = null;
+    }
+  
+    public void onOnline() {
+        System.err.println("[SocketManager] onOnline called");
+        this.offline = false;
+
+        if (this.username != null && this.password != null) {
+            authenticate(this.username, this.password);
+        }
+    }
+
+    public void authenticate(String myUsername, String myPassword) {
         System.err.println("SocketManager.authenticate called");
-        if (username.isEmpty() && password.isEmpty()) {
+        if (myUsername.isEmpty() && myPassword.isEmpty()) {
             System.err.println("SocketManager authenticate was called without credentials");
             return;
         }
-        System.err.println("SOCKETMANAGER AUTHENTICATE NYI");
-
+        this.username = myUsername;
+        this.password = myPassword;
+        this.authenticatedClient = null;
     }
-
-    private void getUnauthenticatedResource() {
-
-    }
-    WebSocketInterface unauthenticatedClient = null;
 
     private WebSocketInterface getUnauthenticatedClient() {
         if (unauthenticatedClient == null) {
-            unauthenticatedClient = connectResource("");
+            unauthenticatedClient = connectResource("", false);
         }
         return unauthenticatedClient;
     }
 
+    private WebSocketInterface getAuthenticatedClient() {
+        if (authenticatedClient == null) {
+            authenticatedClient = connectResource("", true);
+        }
+        return authenticatedClient;
+    }
+    
     public WebSocketInterface createProvisioning() {
         WebSocketInterface.Listener wsl = new ProvisioningListener();
-        WebSocketInterface answer = connectResource("provisioning/", wsl);
+        WebSocketInterface answer = connectResource("provisioning/", wsl, false);
         return answer;
     }
 
-    private WebSocketInterface connectResource(String path) {
-        return this.connectResource(path, new WebSocketListener());
+    private WebSocketInterface connectResource(String path, boolean auth) {
+        return this.connectResource(path, new WebSocketListener(), auth);
     } 
     
-    private WebSocketInterface connectResource(String path, WebSocketInterface.Listener wsl) {
+//    private WebSocketInterface connectResource(String path, WebSocketInterface.Listener wsl) {
+//        return connectResource(path, wsl, false);
+//    }
+    
+    private WebSocketInterface connectResource(String path, WebSocketInterface.Listener wsl, boolean auth) {
         System.err.println("start setting logger");
         StdErrLog logger = new StdErrLog();
         logger.setLevel(StdErrLog.LEVEL_INFO);
@@ -110,7 +137,11 @@ static final String AGENT="Signal-Desktop/5.14.0 Linux";
                     answer.setListener(wsl);
                     httpClient.start();
                     holder.start();
-                    URI uri = new URI("wss://" + SERVER_NAME + "/v1/websocket/"+path+"?agent=OWD&version=5.14.0");
+                    String url = "wss://" + SERVER_NAME + "/v1/websocket/"+path+"?agent=OWD&version=5.14.0";
+                    if (auth) {
+                        url = url+"&login="+username+"&password="+password;
+                    }
+                    URI uri = new URI(url);
                     ClientUpgradeRequest request = new ClientUpgradeRequest();
                     holder.connect(answer, uri, request);
                     System.err.println("Websocket connected for uri = "+uri);
@@ -123,7 +154,6 @@ static final String AGENT="Signal-Desktop/5.14.0 Linux";
         try {
             answer.waitUntilConnected(10);
             Thread.sleep(1000);
-//            cdl.await(10, TimeUnit.SECONDS);
         } catch (InterruptedException ex) {
             Logger.getLogger(SocketManager.class.getName()).log(Level.SEVERE, null, ex);
         }
@@ -144,7 +174,17 @@ static final String AGENT="Signal-Desktop/5.14.0 Linux";
     public long fetch(Map<String, String> params) throws IOException {
         return fetch (params, new LinkedList<String>(), null);
     }
-        
+
+    private boolean isAuthenticated(List<String> headers) {
+        boolean answer = headers.stream().anyMatch(h -> h.startsWith("Authorization"));
+        System.err.println("Does request header contain authorization? " + answer);
+        if ((username == null) || (password == null)) {
+            answer = false;
+            System.err.println("we're not authenticated yet");
+        }
+        return answer;
+    }
+    
     public long fetch(Map<String, String> params, List<String> headers, Consumer<WebSocketResponseMessage> callback) throws IOException {
         long answer = requestCounter;
         requestCounter++;
@@ -155,7 +195,8 @@ static final String AGENT="Signal-Desktop/5.14.0 Linux";
         String path = params.get("path");
         String body = params.get("body");
         System.err.println("send request to "+answer+", " + verb+", "+path);
-        WebSocketInterface client = getUnauthenticatedClient();
+        WebSocketInterface client = (isAuthenticated (headers) ? 
+                getAuthenticatedClient() : getUnauthenticatedClient());
         System.err.println("Ready to send request to client "+client);
         client.sendRequest(answer, verb, path, headers, body == null? null: body.getBytes(StandardCharsets.UTF_8));
         System.err.println("Done sending request");
@@ -215,8 +256,8 @@ static final String AGENT="Signal-Desktop/5.14.0 Linux";
         @Override
         public void onReceivedRequest(WebSocketRequestMessage requestMessage) {
             String path = requestMessage.getPath();
-                 System.err.println("[JVDBG[ normal ORR for path "+path);
-            client.provisioningMessageReceived(requestMessage);
+                 System.err.println("[JVDBG[ normal ORR for path "+path+": "+ requestMessage);
+           // client.provisioningMessageReceived(requestMessage);
 
         }
 
@@ -250,7 +291,6 @@ static final String AGENT="Signal-Desktop/5.14.0 Linux";
         public void onConnected() {
             try {
                 System.err.println("[Client] WebSocket onConnected called");
-                //      cdl.countDown();
             } catch (Exception e) {
                 e.printStackTrace();
             }

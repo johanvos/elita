@@ -63,6 +63,8 @@ static final String PREKEY_PATH = "/v2/keys/%s";
     public void startup() {
         this.socketManager = this.webApi.connect(User.getUserName(), User.getPassword());
         this.webApi.getConfig();
+        this.webApi.onOffline();
+        this.webApi.onOnline();
         this.webApi.provision();
     }
 
@@ -71,16 +73,17 @@ static final String PREKEY_PATH = "/v2/keys/%s";
         byte[] b = new byte[16];
         new SecureRandom().nextBytes(b);
         String password = new String(b, StandardCharsets.UTF_8);
+        password = Base64.getEncoder().encodeToString(password.getBytes());
+        
         password = password.substring(0, password.length() - 2);
         int regid = new SecureRandom().nextInt(16384) & 0x3fff;
         webApi.confirmCode(pm.getNumber(), pm.getProvisioningCode(), password, regid, deviceName, pm.getUuid());
         System.err.println("got code");
         Account account = new Account(pm.getNumber(), pm.getProvisioningCode());
         generateAndRegisterKeys();
-        
-//      await clearSessionsAndPreKeys();
-//      const keys = await generateKeys();
-//      await this.server.registerKeys(keys);
+        this.webApi.authenticate();
+        this.webApi.getConfig();
+
 //      await this.confirmKeys(keys);
 //      await this.registrationDone();
     }

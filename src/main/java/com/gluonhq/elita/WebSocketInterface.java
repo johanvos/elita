@@ -38,6 +38,12 @@ public class WebSocketInterface {
         this.listener = listener;
         listener.attached(this);
     }
+    
+    public void stopSession() {
+        if (session != null) {
+            session.close();
+        }
+    }
 
     @OnWebSocketClose
     public void onClose(int statusCode, String reason) {
