@@ -203,7 +203,15 @@ public class SocketManager {
         return answer;
     }
     
-    public void httpRequest (String method, String path, String body, String ba) {
+    /**
+     * Synchronous call
+     * @param method
+     * @param path
+     * @param body
+     * @param ba
+     * @return 
+     */
+    public ContentResponse httpRequest (String method, String path, String body, String ba) {
       SslContextFactory scf = new SslContextFactory(true);
         httpClient = new HttpClient(scf);
         try {
@@ -217,8 +225,10 @@ public class SocketManager {
                 .agent(AGENT)
                 .header(HttpHeader.AUTHORIZATION, "Basic " + ba)
                 .header("X-Signal-Agent", "OWD")
-                .method(method).path(path)
-                .content (new StringContentProvider(body), "application/json");
+                .method(method).path(path);
+        if (body != null){
+            request.content(new StringContentProvider(body), "application/json");
+        }
         System.err.println("sending "+request);
         System.err.println("method = "+request.getMethod());
         System.err.println("agent = " + request.getAgent());
@@ -227,8 +237,9 @@ public class SocketManager {
         System.err.println("proto = "+request.getScheme());
         System.err.println("query = "+request.getQuery());
         System.err.println("headers = "+request.getHeaders());
+        ContentResponse response = null;
         try {
-          ContentResponse response = request.send();
+           response = request.send();
             System.err.println("got response: "+response);
             System.err.println("RESP " + response.getContentAsString());
         } catch (InterruptedException ex) {
@@ -238,7 +249,7 @@ public class SocketManager {
         } catch (ExecutionException ex) {
             Logger.getLogger(SocketManager.class.getName()).log(Level.SEVERE, null, ex);
         }
-                
+        return response;        
     }
     
 

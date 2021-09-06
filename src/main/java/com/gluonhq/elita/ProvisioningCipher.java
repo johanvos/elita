@@ -71,29 +71,6 @@ public class ProvisioningCipher {
         System.err.println("identitykp = "+ keyPair);
         KeyUtil.setIdentityKeyPair(keyPair);
         return pm;
-        
-//    const privKey = provisionMessage.identityKeyPrivate;
-//    strictAssert(privKey, 'Missing identityKeyPrivate in ProvisionMessage');
-//
-//    const keyPair = createKeyPair(typedArrayToArrayBuffer(privKey));
-//
-//    const { uuid } = provisionMessage;
-//    strictAssert(uuid, 'Missing uuid in provisioning message');
-//
-//    const ret: ProvisionDecryptResult = {
-//      identityKeyPair: keyPair,
-//      number: provisionMessage.number,
-//      uuid: normalizeUuid(uuid, 'ProvisionMessage.uuid'),
-//      provisioningCode: provisionMessage.provisioningCode,
-//      userAgent: provisionMessage.userAgent,
-//      readReceipts: provisionMessage.readReceipts,
-//    };
-//    if (provisionMessage.profileKey) {
-//      ret.profileKey = typedArrayToArrayBuffer(provisionMessage.profileKey);
-//    }
-//    return ret;
-//
-//        
     }
     
     

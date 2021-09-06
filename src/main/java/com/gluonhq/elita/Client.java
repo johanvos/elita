@@ -3,36 +3,48 @@ package com.gluonhq.elita;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gluonhq.elita.crypto.KeyUtil;
-import com.gluonhq.elita.model.Account;
 import com.gluonhq.elita.storage.User;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
-import org.eclipse.jetty.util.log.Log;
-import org.eclipse.jetty.util.log.StdErrLog;
 import org.eclipse.jetty.websocket.api.annotations.WebSocket;
-import org.eclipse.jetty.websocket.client.ClientUpgradeRequest;
-import org.eclipse.jetty.websocket.client.WebSocketClient;
 import org.whispersystems.websocket.messages.WebSocketRequestMessage;
 import org.whispersystems.websocket.messages.WebSocketResponseMessage;
 
 import java.io.IOException;
-import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.eclipse.jetty.client.HttpClient;
-import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.whispersystems.libsignal.IdentityKey;
 import org.whispersystems.libsignal.IdentityKeyPair;
 import org.whispersystems.libsignal.state.PreKeyRecord;
 import org.whispersystems.libsignal.state.SignedPreKeyRecord;
+import org.whispersystems.signalservice.api.SignalServiceDataStore;
+import org.whispersystems.signalservice.api.SignalServiceMessageSender;
+import org.whispersystems.signalservice.api.crypto.ContentHint;
+import org.whispersystems.signalservice.api.crypto.EnvelopeContent;
+import org.whispersystems.signalservice.api.crypto.UntrustedIdentityException;
+import org.whispersystems.signalservice.api.messages.multidevice.RequestMessage;
+import org.whispersystems.signalservice.api.messages.multidevice.SignalServiceSyncMessage;
 import org.whispersystems.signalservice.api.push.SignedPreKeyEntity;
+import org.whispersystems.signalservice.api.util.CredentialsProvider;
 import org.whispersystems.signalservice.internal.push.PreKeyEntity;
 import org.whispersystems.signalservice.internal.push.PreKeyState;
+import org.whispersystems.signalservice.internal.push.RemoteConfigResponse;
+import org.whispersystems.signalservice.internal.push.RemoteConfigResponse.Config;
+import org.whispersystems.signalservice.internal.push.SignalServiceProtos;
+import org.whispersystems.signalservice.internal.push.SignalServiceProtos.SyncMessage.Request;
+import org.whispersystems.signalservice.internal.util.StaticCredentialsProvider;
+import org.whispersystems.signalservice.internal.util.Util;
 
 //import static org.whispersystems.signalservice.internal.push.ProvisioningProtos.*;
 import signalservice.DeviceMessages.*;
@@ -47,9 +59,12 @@ static final String PREKEY_PATH = "/v2/keys/%s";
     private final SecureRandom sr;
     SocketManager socketManager;
     final WebAPI webApi;
-
+    private final SignalServiceDataStore signalServiceDataStore = new SignalServiceDataStoreImpl();
+    private CredentialsProvider credentialsProvider;
+    
     private final Elita elita;
     HttpClient httpClient;
+    private RemoteConfigResponse remoteConfig;
 
     public Client(Elita elita) {
         this.elita = elita;
@@ -57,7 +72,6 @@ static final String PREKEY_PATH = "/v2/keys/%s";
         this.webSocket = new WebSocketInterface();
         this.provisioningCipher = new ProvisioningCipher();
         this.sr = new SecureRandom();
-        //  this.socketManager = new SocketManager(this, null, null, null, null);
     }
 
     public void startup() {
@@ -77,16 +91,97 @@ static final String PREKEY_PATH = "/v2/keys/%s";
         
         password = password.substring(0, password.length() - 2);
         int regid = new SecureRandom().nextInt(16384) & 0x3fff;
-        webApi.confirmCode(pm.getNumber(), pm.getProvisioningCode(), password, regid, deviceName, pm.getUuid());
+        webApi.confirmCode(pm.getNumber(), pm.getProvisioningCode(), password, 
+                regid, deviceName, pm.getUuid());
         System.err.println("got code");
-        Account account = new Account(pm.getNumber(), pm.getProvisioningCode());
+        this.credentialsProvider = new StaticCredentialsProvider(UUID.fromString(pm.getUuid()), pm.getNumber(), password);
         generateAndRegisterKeys();
+        finishRegistration();
+    }
+    
+    private void finishRegistration() throws IOException {
         this.webApi.authenticate();
-        this.webApi.getConfig();
+        connect(true);
+    }
+    
+    int connectCount = 0;
+    boolean connecting = false;
+    
+    private void connect(boolean firstrun) throws IOException {
+        if (connecting) {
+            Thread.dumpStack();
+            throw new RuntimeException ("Should not connect while connecting!");
+        }
+        connecting = true;
+        this.webApi.getConfig(msg -> this.remoteConfig = msg);
 
+        synchronizeData();
+        webApi.registerSupportForUnauthenticatedDelivery();
+        webApi.getKeysForIdentifier();
+        webApi.registerCapabilities();
 //      await this.confirmKeys(keys);
 //      await this.registrationDone();
     }
+    
+    private void processNewConfiguration(RemoteConfigResponse conf) throws IOException, UntrustedIdentityException {
+        System.err.println("This configList has "+conf.getConfig().size()+" configs.");
+        System.err.println("CFG0 = "+ conf.getConfig().get(0));
+        System.err.println("C0name = " + conf.getConfig().get(0).getName());
+        System.err.println("C0val = " + conf.getConfig().get(0).getValue());
+        for (Config config : conf.getConfig()) {
+            if ("desktop.storage".equals(config.getName())) {
+                sendRequestKeySyncMessage();
+            }
+        }
+    }
+    
+    private void sendRequestKeySyncMessage() throws IOException, UntrustedIdentityException {
+        String myUuid = webApi.getMyUuid();
+        String myNumber = webApi.getMyNumber();
+        
+        Request request = Request.newBuilder().setType(Request.Type.KEYS).build();
+        RequestMessage requestMessage = new RequestMessage(request);
+        SignalServiceSyncMessage message = SignalServiceSyncMessage.forRequest(requestMessage);
+
+        SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsProvider, signalServiceDataStore);
+        sender.sendSyncMessage(message, org.whispersystems.libsignal.util.guava.Optional.absent());
+        
+        
+        SignalServiceProtos.Content.Builder     container = SignalServiceProtos.Content.newBuilder();
+    SignalServiceProtos.SyncMessage.Builder builder   = createSyncMessageBuilder();
+builder.setRequest(SignalServiceProtos.SyncMessage.Request.newBuilder(request));
+        SignalServiceProtos.Content content = container.setSyncMessage(builder).build();
+        System.err.println("SYNCREQUESTMESSAGE = "+ content);
+        
+          long timestamp = message.getSent().isPresent() ? message.getSent().get().getTimestamp()
+                                                   : System.currentTimeMillis();
+
+    EnvelopeContent envelopeContent = EnvelopeContent.encrypted(content, ContentHint.IMPLICIT, org.whispersystems.libsignal.util.guava.Optional.absent());
+        System.err.println("EVContent = "+envelopeContent);
+        
+        
+//        const request = new protobuf_1.SignalService.SyncMessage.Request();
+//        request.type = protobuf_1.SignalService.SyncMessage.Request.Type.KEYS;
+//        const syncMessage = this.createSyncMessage();
+//        syncMessage.request = request;
+//        const contentMessage = new protobuf_1.SignalService.Content();
+//        contentMessage.syncMessage = syncMessage;
+//        const { ContentHint } = protobuf_1.SignalService.UnidentifiedSenderMessage.Message;
+//        return this.sendIndividualProto({
+//            identifier: myUuid || myNumber,
+//            proto: contentMessage,
+//            timestamp: Date.now(),
+//            contentHint: ContentHint.IMPLICIT,
+//            options,
+//        });
+
+    }
+    private void synchronizeData() throws IOException {
+        long startDate = ChronoUnit.DAYS.between(Instant.EPOCH, Instant.now());
+        long endDate = startDate + 7;
+        webApi.getGroupCredentials(startDate, endDate);
+    }
+
 
     public void provisioningMessageReceived(WebSocketRequestMessage requestMessage) {
         String path = requestMessage.getPath();
@@ -192,6 +287,16 @@ static final String PREKEY_PATH = "/v2/keys/%s";
        // NOT USING SocketManager, hence http
         this.webApi.fetchHttp("PUT", String.format(PREKEY_PATH, ""),jsonData);
     }
+private static SignalServiceProtos.SyncMessage.Builder createSyncMessageBuilder() {
+    SecureRandom random  = new SecureRandom();
+    byte[]       padding = Util.getRandomLengthBytes(512);
+    random.nextBytes(padding);
+
+    SignalServiceProtos.SyncMessage.Builder builder = SignalServiceProtos.SyncMessage.newBuilder();
+    builder.setPadding(ByteString.copyFrom(padding));
+
+    return builder;
+  }
 
 
 }
