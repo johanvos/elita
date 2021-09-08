@@ -97,8 +97,18 @@ public class SignalServiceDataStoreImpl implements SignalServiceDataStore {
 
     private Map<String, List<Integer>> sessionDevice = new HashMap<>();
     
+    public void addDeviceToIdentifier(String identifier, int deviceId) {
+        List<Integer> devs = sessionDevice.get(identifier);
+        if (devs == null) {
+            devs = new LinkedList<>();
+            sessionDevice.put(identifier, devs);
+        }
+        devs.add(deviceId);
+    }
+    
     @Override
     public List<Integer> getSubDeviceSessions(String identifier) {
+        System.err.println("GETSUBDEV for id = "+identifier);
         List<Integer> answer = sessionDevice.get(identifier);
         if (answer == null) answer = new LinkedList<>();
         return answer;
@@ -111,7 +121,8 @@ public class SignalServiceDataStoreImpl implements SignalServiceDataStore {
 
     @Override
     public boolean containsSession(SignalProtocolAddress spa) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        System.err.println("ContainsSession asked for spa "+spa);
+        return true;
     }
 
     @Override

@@ -23,6 +23,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.eclipse.jetty.client.api.ContentResponse;
 import org.whispersystems.signalservice.internal.push.PreKeyResponse;
+import org.whispersystems.signalservice.internal.push.PreKeyResponseItem;
 import org.whispersystems.signalservice.internal.push.RemoteConfigResponse;
 import org.whispersystems.signalservice.internal.util.JsonUtil;
 import org.whispersystems.websocket.messages.WebSocketResponseMessage;
@@ -221,6 +222,12 @@ public class WebAPI {
         String responseText = response.getContentAsString();
         PreKeyResponse preKeys = JsonUtil.fromJson(responseText, PreKeyResponse.class);
         System.err.println("Prekeys = "+ preKeys);
+        List<PreKeyResponseItem> devices = preKeys.getDevices();
+        devices.stream().forEach(pk -> {
+            System.err.println("pk = "+pk);
+            int deviceId = pk.getDeviceId();
+            client.getSignalServiceDataStore().addDeviceToIdentifier(uuid, deviceId);
+        });
     }
 
     void registerCapabilities() throws IOException {

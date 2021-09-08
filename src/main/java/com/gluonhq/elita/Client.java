@@ -24,6 +24,7 @@ import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.eclipse.jetty.client.HttpClient;
+import org.thoughtcrime.securesms.crypto.ReentrantSessionLock;
 import org.whispersystems.libsignal.IdentityKey;
 import org.whispersystems.libsignal.IdentityKeyPair;
 import org.whispersystems.libsignal.state.PreKeyRecord;
@@ -59,7 +60,7 @@ static final String PREKEY_PATH = "/v2/keys/%s";
     private final SecureRandom sr;
     SocketManager socketManager;
     final WebAPI webApi;
-    private final SignalServiceDataStore signalServiceDataStore = new SignalServiceDataStoreImpl();
+    private final SignalServiceDataStoreImpl signalServiceDataStore = new SignalServiceDataStoreImpl();
     private CredentialsProvider credentialsProvider;
     
     private final Elita elita;
@@ -74,6 +75,11 @@ static final String PREKEY_PATH = "/v2/keys/%s";
         this.sr = new SecureRandom();
     }
 
+    // we return the impl here, since we need the method to store device-identifier
+    public SignalServiceDataStoreImpl getSignalServiceDataStore() {
+        return signalServiceDataStore;
+    }
+    
     public void startup() {
         this.socketManager = this.webApi.connect(User.getUserName(), User.getPassword());
         this.webApi.getConfig();
@@ -119,8 +125,13 @@ static final String PREKEY_PATH = "/v2/keys/%s";
         webApi.registerSupportForUnauthenticatedDelivery();
         webApi.getKeysForIdentifier();
         webApi.registerCapabilities();
+        try {
+            sendRequestKeySyncMessage();
 //      await this.confirmKeys(keys);
 //      await this.registrationDone();
+        } catch (UntrustedIdentityException ex) {
+            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+        }
     }
     
     private void processNewConfiguration(RemoteConfigResponse conf) throws IOException, UntrustedIdentityException {
@@ -143,7 +154,7 @@ static final String PREKEY_PATH = "/v2/keys/%s";
         RequestMessage requestMessage = new RequestMessage(request);
         SignalServiceSyncMessage message = SignalServiceSyncMessage.forRequest(requestMessage);
 
-        SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsProvider, signalServiceDataStore);
+        SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsProvider, signalServiceDataStore, ReentrantSessionLock.INSTANCE);
         sender.sendSyncMessage(message, org.whispersystems.libsignal.util.guava.Optional.absent());
         
         
