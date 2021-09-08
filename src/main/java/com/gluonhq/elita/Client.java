@@ -17,8 +17,10 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.logging.Level;
@@ -27,12 +29,14 @@ import org.eclipse.jetty.client.HttpClient;
 import org.thoughtcrime.securesms.crypto.ReentrantSessionLock;
 import org.whispersystems.libsignal.IdentityKey;
 import org.whispersystems.libsignal.IdentityKeyPair;
+import org.whispersystems.libsignal.InvalidKeyException;
 import org.whispersystems.libsignal.state.PreKeyRecord;
 import org.whispersystems.libsignal.state.SignalProtocolStore;
 import org.whispersystems.libsignal.state.SignedPreKeyRecord;
 import org.whispersystems.libsignal.state.impl.InMemorySignalProtocolStore;
 //import org.whispersystems.signalservice.api.SignalServiceDataStore;
 import org.whispersystems.signalservice.api.SignalServiceMessageSender;
+import org.whispersystems.signalservice.api.crypto.UnidentifiedAccess;
 //import org.whispersystems.signalservice.api.crypto.ContentHint;
 //import org.whispersystems.signalservice.api.crypto.EnvelopeContent;
 import org.whispersystems.signalservice.api.crypto.UntrustedIdentityException;
@@ -40,12 +44,14 @@ import org.whispersystems.signalservice.api.messages.multidevice.RequestMessage;
 import org.whispersystems.signalservice.api.messages.multidevice.SignalServiceSyncMessage;
 import org.whispersystems.signalservice.api.push.SignedPreKeyEntity;
 import org.whispersystems.signalservice.api.util.CredentialsProvider;
+import org.whispersystems.signalservice.internal.push.OutgoingPushMessageList;
 import org.whispersystems.signalservice.internal.push.PreKeyEntity;
 import org.whispersystems.signalservice.internal.push.PreKeyState;
 import org.whispersystems.signalservice.internal.push.RemoteConfigResponse;
 import org.whispersystems.signalservice.internal.push.RemoteConfigResponse.Config;
 import org.whispersystems.signalservice.internal.push.SignalServiceProtos;
 import org.whispersystems.signalservice.internal.push.SignalServiceProtos.SyncMessage.Request;
+import org.whispersystems.signalservice.internal.util.JsonUtil;
 import org.whispersystems.signalservice.internal.util.StaticCredentialsProvider;
 import org.whispersystems.signalservice.internal.util.Util;
 
@@ -57,6 +63,9 @@ public class Client implements WebSocketInterface.Listener {
 
     static final String SERVER_NAME = "https://textsecure-service.whispersystems.org";
 static final String PREKEY_PATH = "/v2/keys/%s";
+  private static final String MESSAGE_PATH              = "/v1/messages/%s";
+  private static final Map<String, String> NO_HEADERS = Collections.emptyMap();
+
     final WebSocketInterface webSocket;
     private final ProvisioningCipher provisioningCipher;
     private final SecureRandom sr;
@@ -138,6 +147,8 @@ static final String PREKEY_PATH = "/v2/keys/%s";
 //      await this.registrationDone();
         } catch (UntrustedIdentityException ex) {
             Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (InvalidKeyException ex) {
+            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
     
@@ -148,12 +159,16 @@ static final String PREKEY_PATH = "/v2/keys/%s";
         System.err.println("C0val = " + conf.getConfig().get(0).getValue());
         for (Config config : conf.getConfig()) {
             if ("desktop.storage".equals(config.getName())) {
-                sendRequestKeySyncMessage();
+                try {
+                    sendRequestKeySyncMessage();
+                } catch (InvalidKeyException ex) {
+                    Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+                }
             }
         }
     }
     
-    private void sendRequestKeySyncMessage() throws IOException, UntrustedIdentityException {
+    private void sendRequestKeySyncMessage() throws IOException, UntrustedIdentityException, InvalidKeyException {
         String myUuid = webApi.getMyUuid();
         String myNumber = webApi.getMyNumber();
         
@@ -162,8 +177,9 @@ static final String PREKEY_PATH = "/v2/keys/%s";
         SignalServiceSyncMessage message = SignalServiceSyncMessage.forRequest(requestMessage);
 SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsProvider, store);
 //        SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsProvider, signalServiceDataStore, ReentrantSessionLock.INSTANCE);
-        sender.sendMessage(message, org.whispersystems.libsignal.util.guava.Optional.absent());
-//        
+        OutgoingPushMessageList messages = sender.createMessageBundle(message, org.whispersystems.libsignal.util.guava.Optional.absent());
+       webApi.fetchHttp("PUT", String.format(MESSAGE_PATH, messages.getDestination()), JsonUtil.toJson(messages));
+//
 //        
 //        SignalServiceProtos.Content.Builder     container = SignalServiceProtos.Content.newBuilder();
 //    SignalServiceProtos.SyncMessage.Builder builder   = createSyncMessageBuilder();
@@ -176,8 +192,7 @@ SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsPr
 //
 //    EnvelopeContent envelopeContent = EnvelopeContent.encrypted(content, ContentHint.IMPLICIT, org.whispersystems.libsignal.util.guava.Optional.absent());
 //        System.err.println("EVContent = "+envelopeContent);
-//        
-        
+//
 //        const request = new protobuf_1.SignalService.SyncMessage.Request();
 //        request.type = protobuf_1.SignalService.SyncMessage.Request.Type.KEYS;
 //        const syncMessage = this.createSyncMessage();

@@ -69,7 +69,7 @@ public class ProvisioningCipher {
         System.err.println("NR = " + pm.getNumber());
         ECPrivateKey privateKey = Curve.decodePrivatePoint(pm.getIdentityKeyPrivate().toByteArray());
         // ECPublicKey publicKey = privateKey.publicKey();
-     ECPublicKey publicKey = ecPub;
+     ECPublicKey publicKey = Curve.createPublicKeyFromPrivateKey(pm.getIdentityKeyPrivate().toByteArray());
      
         ECKeyPair keyPair = new ECKeyPair(publicKey, privateKey);
         System.err.println("identitykp = "+ keyPair);
