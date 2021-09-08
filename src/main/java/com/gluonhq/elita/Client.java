@@ -28,11 +28,13 @@ import org.thoughtcrime.securesms.crypto.ReentrantSessionLock;
 import org.whispersystems.libsignal.IdentityKey;
 import org.whispersystems.libsignal.IdentityKeyPair;
 import org.whispersystems.libsignal.state.PreKeyRecord;
+import org.whispersystems.libsignal.state.SignalProtocolStore;
 import org.whispersystems.libsignal.state.SignedPreKeyRecord;
-import org.whispersystems.signalservice.api.SignalServiceDataStore;
+import org.whispersystems.libsignal.state.impl.InMemorySignalProtocolStore;
+//import org.whispersystems.signalservice.api.SignalServiceDataStore;
 import org.whispersystems.signalservice.api.SignalServiceMessageSender;
-import org.whispersystems.signalservice.api.crypto.ContentHint;
-import org.whispersystems.signalservice.api.crypto.EnvelopeContent;
+//import org.whispersystems.signalservice.api.crypto.ContentHint;
+//import org.whispersystems.signalservice.api.crypto.EnvelopeContent;
 import org.whispersystems.signalservice.api.crypto.UntrustedIdentityException;
 import org.whispersystems.signalservice.api.messages.multidevice.RequestMessage;
 import org.whispersystems.signalservice.api.messages.multidevice.SignalServiceSyncMessage;
@@ -60,12 +62,15 @@ static final String PREKEY_PATH = "/v2/keys/%s";
     private final SecureRandom sr;
     SocketManager socketManager;
     final WebAPI webApi;
-    private final SignalServiceDataStoreImpl signalServiceDataStore = new SignalServiceDataStoreImpl();
+ //   private final SignalServiceDataStoreImpl signalServiceDataStore = new SignalServiceDataStoreImpl();
     private CredentialsProvider credentialsProvider;
     
     private final Elita elita;
     HttpClient httpClient;
     private RemoteConfigResponse remoteConfig;
+    private IdentityKeyPair identityKeypair;
+    private int regid;
+    SignalProtocolStore store;
 
     public Client(Elita elita) {
         this.elita = elita;
@@ -76,8 +81,8 @@ static final String PREKEY_PATH = "/v2/keys/%s";
     }
 
     // we return the impl here, since we need the method to store device-identifier
-    public SignalServiceDataStoreImpl getSignalServiceDataStore() {
-        return signalServiceDataStore;
+    public SignalProtocolStore getSignalServiceDataStore() {
+        return store;
     }
     
     public void startup() {
@@ -96,12 +101,14 @@ static final String PREKEY_PATH = "/v2/keys/%s";
         password = Base64.getEncoder().encodeToString(password.getBytes());
         
         password = password.substring(0, password.length() - 2);
-        int regid = new SecureRandom().nextInt(16384) & 0x3fff;
+        regid = new SecureRandom().nextInt(16384) & 0x3fff;
         webApi.confirmCode(pm.getNumber(), pm.getProvisioningCode(), password, 
                 regid, deviceName, pm.getUuid());
         System.err.println("got code");
-        this.credentialsProvider = new StaticCredentialsProvider(UUID.fromString(pm.getUuid()), pm.getNumber(), password);
+        this.credentialsProvider = new StaticCredentialsProvider(UUID.fromString(pm.getUuid()),
+                pm.getNumber(), password, "signalingkey");
         generateAndRegisterKeys();
+        store = new InMemorySignalProtocolStore(identityKeypair, regid);
         finishRegistration();
     }
     
@@ -153,23 +160,23 @@ static final String PREKEY_PATH = "/v2/keys/%s";
         Request request = Request.newBuilder().setType(Request.Type.KEYS).build();
         RequestMessage requestMessage = new RequestMessage(request);
         SignalServiceSyncMessage message = SignalServiceSyncMessage.forRequest(requestMessage);
-
-        SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsProvider, signalServiceDataStore, ReentrantSessionLock.INSTANCE);
-        sender.sendSyncMessage(message, org.whispersystems.libsignal.util.guava.Optional.absent());
-        
-        
-        SignalServiceProtos.Content.Builder     container = SignalServiceProtos.Content.newBuilder();
-    SignalServiceProtos.SyncMessage.Builder builder   = createSyncMessageBuilder();
-builder.setRequest(SignalServiceProtos.SyncMessage.Request.newBuilder(request));
-        SignalServiceProtos.Content content = container.setSyncMessage(builder).build();
-        System.err.println("SYNCREQUESTMESSAGE = "+ content);
-        
-          long timestamp = message.getSent().isPresent() ? message.getSent().get().getTimestamp()
-                                                   : System.currentTimeMillis();
-
-    EnvelopeContent envelopeContent = EnvelopeContent.encrypted(content, ContentHint.IMPLICIT, org.whispersystems.libsignal.util.guava.Optional.absent());
-        System.err.println("EVContent = "+envelopeContent);
-        
+SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsProvider, store);
+//        SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsProvider, signalServiceDataStore, ReentrantSessionLock.INSTANCE);
+        sender.sendMessage(message, org.whispersystems.libsignal.util.guava.Optional.absent());
+//        
+//        
+//        SignalServiceProtos.Content.Builder     container = SignalServiceProtos.Content.newBuilder();
+//    SignalServiceProtos.SyncMessage.Builder builder   = createSyncMessageBuilder();
+//builder.setRequest(SignalServiceProtos.SyncMessage.Request.newBuilder(request));
+//        SignalServiceProtos.Content content = container.setSyncMessage(builder).build();
+//        System.err.println("SYNCREQUESTMESSAGE = "+ content);
+//        
+//          long timestamp = message.getSent().isPresent() ? message.getSent().get().getTimestamp()
+//                                                   : System.currentTimeMillis();
+//
+//    EnvelopeContent envelopeContent = EnvelopeContent.encrypted(content, ContentHint.IMPLICIT, org.whispersystems.libsignal.util.guava.Optional.absent());
+//        System.err.println("EVContent = "+envelopeContent);
+//        
         
 //        const request = new protobuf_1.SignalService.SyncMessage.Request();
 //        request.type = protobuf_1.SignalService.SyncMessage.Request.Type.KEYS;
@@ -268,10 +275,10 @@ builder.setRequest(SignalServiceProtos.SyncMessage.Request.newBuilder(request));
     }
 
     public void generateAndRegisterKeys() throws IOException {
-        IdentityKeyPair identityKey = KeyUtil.getIdentityKeyPair();
-        SignedPreKeyRecord signedPreKey = KeyUtil.generateSignedPreKey(identityKey, true);
+        this.identityKeypair = KeyUtil.getIdentityKeyPair();
+        SignedPreKeyRecord signedPreKey = KeyUtil.generateSignedPreKey(identityKeypair, true);
         List<PreKeyRecord> records = KeyUtil.generatePreKeys(100);
-        registerPreKeys(identityKey.getPublicKey(), signedPreKey, records);
+        registerPreKeys(identityKeypair.getPublicKey(), signedPreKey, records);
     }
     
     public void registerPreKeys(IdentityKey identityKey,
@@ -308,6 +315,10 @@ private static SignalServiceProtos.SyncMessage.Builder createSyncMessageBuilder(
 
     return builder;
   }
+
+    private void InMemorySignalProtocolStore(IdentityKeyPair identityKeypair, int regid) {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
 
 
 }

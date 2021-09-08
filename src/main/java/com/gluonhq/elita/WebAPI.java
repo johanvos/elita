@@ -226,7 +226,7 @@ public class WebAPI {
         devices.stream().forEach(pk -> {
             System.err.println("pk = "+pk);
             int deviceId = pk.getDeviceId();
-            client.getSignalServiceDataStore().addDeviceToIdentifier(uuid, deviceId);
+      //      client.getSignalServiceDataStore().addDeviceToIdentifier(uuid, deviceId);
         });
     }
 

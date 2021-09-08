@@ -5,9 +5,9 @@
  */
 package com.gluonhq.elita;
 
-import org.whispersystems.signalservice.api.ContentTooLargeException;
-import org.whispersystems.signalservice.api.crypto.EnvelopeContent;
-import org.whispersystems.signalservice.internal.push.SignalServiceProtos;
+//import org.whispersystems.signalservice.api.ContentTooLargeException;
+//import org.whispersystems.signalservice.api.crypto.EnvelopeContent;
+//import org.whispersystems.signalservice.internal.push.SignalServiceProtos;
 
 /**
  *
