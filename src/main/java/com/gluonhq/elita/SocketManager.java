@@ -162,7 +162,9 @@ public class SocketManager {
     }
 
     public long fetch(String verb, String path) throws IOException {
+
         long answer = requestCounter;
+        System.err.println("[SEND] fetchws: "+verb+" v1/config, req "+answer);
         requestCounter++;
         System.err.println("ready... verb = " + verb);
         WebSocketInterface client = getUnauthenticatedClient();
@@ -186,6 +188,7 @@ public class SocketManager {
     }
     
     public long fetch(Map<String, String> params, List<String> headers, Consumer<WebSocketResponseMessage> callback) throws IOException {
+
         long answer = requestCounter;
         requestCounter++;
         if (callback != null) {
@@ -194,6 +197,8 @@ public class SocketManager {
         String verb = params.getOrDefault("verb", "PUT");
         String path = params.get("path");
         String body = params.get("body");
+        System.err.println("[SEND] fetchws: "+verb+" "+path+", req "+answer);
+
         System.err.println("send request to "+answer+", " + verb+", "+path);
         WebSocketInterface client = (isAuthenticated (headers) ? 
                 getAuthenticatedClient() : getUnauthenticatedClient());

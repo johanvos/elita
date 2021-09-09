@@ -43,6 +43,7 @@ public class WebAPI {
     private String number;
     private String pwd;
     private int deviceId;
+    private String basicAuth;
     
     public WebAPI (Client c, String url) {
         this.client = c;
@@ -147,7 +148,7 @@ public class WebAPI {
         Map params = new HashMap();
         List<String> headers = new LinkedList();
         String authbase = username+":"+pwd;
-        String basicAuth = Base64.getEncoder().encodeToString(authbase.getBytes());
+        this.basicAuth = Base64.getEncoder().encodeToString(authbase.getBytes());
         System.err.println("result of "+ authbase+" conv = "+ basicAuth);
         System.err.println("BA1 = "+basicAuth);
         headers.add("Authorization:Basic "+basicAuth);
@@ -210,7 +211,7 @@ public class WebAPI {
         this.socketManager.fetch(params, headers, null);
     }
     
-    void getKeysForIdentifier() throws IOException {
+    PreKeyResponse getKeysForIdentifier() throws IOException {
         List<String> headers = getDefaultHeaders();
         Optional<String> auth = createBasicAuthHeader();
         if (auth.isPresent()) headers.add(auth.get());
@@ -221,13 +222,7 @@ public class WebAPI {
         ContentResponse response = this.fetchHttp("GET", "/v2/keys/"+uuid+"/*", null); 
         String responseText = response.getContentAsString();
         PreKeyResponse preKeys = JsonUtil.fromJson(responseText, PreKeyResponse.class);
-        System.err.println("Prekeys = "+ preKeys);
-        List<PreKeyResponseItem> devices = preKeys.getDevices();
-        devices.stream().forEach(pk -> {
-            System.err.println("pk = "+pk);
-            int deviceId = pk.getDeviceId();
-      //      client.getSignalServiceDataStore().addDeviceToIdentifier(uuid, deviceId);
-        });
+        return preKeys;
     }
 
     void registerCapabilities() throws IOException {
@@ -249,7 +244,7 @@ public class WebAPI {
     
     void fetch(String url, String verb, String jsonData, SocketManager sm) throws IOException {
         List<String> headers = new LinkedList<>();
-       //    headers.add("Authorization:Basic "+basicAuth);
+        headers.add("Authorization:Basic "+basicAuth);
         headers.add("content-type:application/json;charset=utf-8");
         headers.add("User-Agent:Signal-Desktop/5.14.0 Linux");
         headers.add("x-signal-agent:OWD");
@@ -268,7 +263,6 @@ public class WebAPI {
 
         ObjectNode jsonData = mapper.createObjectNode();
         System.err.println("DOOH");
-      //  Thread.dumpStack();
         jsonData.set("capabilities", capabilities);
         jsonData.put("fetchesMessages", true);
         jsonData.put("name", name);
@@ -281,10 +275,9 @@ public class WebAPI {
     }
 
     ContentResponse fetchHttp(String method, String path, String jsonData) {
+        System.err.println("[SEND] fetchhttp: "+method+" "+path);
         String authbase = uuid+"."+deviceId+":"+pwd;
         String basicAuth = Base64.getEncoder().encodeToString(authbase.getBytes());
-        System.err.println("result of "+ authbase+" conv = "+ basicAuth);
-        System.err.println("BA1 = "+basicAuth);
         ContentResponse response = this.socketManager.httpRequest(method, path, jsonData, basicAuth);
         return response;
     }

@@ -30,7 +30,13 @@ import org.thoughtcrime.securesms.crypto.ReentrantSessionLock;
 import org.whispersystems.libsignal.IdentityKey;
 import org.whispersystems.libsignal.IdentityKeyPair;
 import org.whispersystems.libsignal.InvalidKeyException;
+import org.whispersystems.libsignal.SessionBuilder;
+import org.whispersystems.libsignal.SignalProtocolAddress;
+import org.whispersystems.libsignal.ecc.ECPublicKey;
+import org.whispersystems.libsignal.state.PreKeyBundle;
 import org.whispersystems.libsignal.state.PreKeyRecord;
+import org.whispersystems.libsignal.state.SessionRecord;
+import org.whispersystems.libsignal.state.SessionState;
 import org.whispersystems.libsignal.state.SignalProtocolStore;
 import org.whispersystems.libsignal.state.SignedPreKeyRecord;
 import org.whispersystems.libsignal.state.impl.InMemorySignalProtocolStore;
@@ -46,6 +52,8 @@ import org.whispersystems.signalservice.api.push.SignedPreKeyEntity;
 import org.whispersystems.signalservice.api.util.CredentialsProvider;
 import org.whispersystems.signalservice.internal.push.OutgoingPushMessageList;
 import org.whispersystems.signalservice.internal.push.PreKeyEntity;
+import org.whispersystems.signalservice.internal.push.PreKeyResponse;
+import org.whispersystems.signalservice.internal.push.PreKeyResponseItem;
 import org.whispersystems.signalservice.internal.push.PreKeyState;
 import org.whispersystems.signalservice.internal.push.RemoteConfigResponse;
 import org.whispersystems.signalservice.internal.push.RemoteConfigResponse.Config;
@@ -62,18 +70,18 @@ import signalservice.DeviceMessages.*;
 public class Client implements WebSocketInterface.Listener {
 
     static final String SERVER_NAME = "https://textsecure-service.whispersystems.org";
-static final String PREKEY_PATH = "/v2/keys/%s";
-  private static final String MESSAGE_PATH              = "/v1/messages/%s";
-  private static final Map<String, String> NO_HEADERS = Collections.emptyMap();
+    static final String PREKEY_PATH = "/v2/keys/%s";
+    private static final String MESSAGE_PATH = "/v1/messages/%s";
+    private static final Map<String, String> NO_HEADERS = Collections.emptyMap();
 
     final WebSocketInterface webSocket;
     private final ProvisioningCipher provisioningCipher;
     private final SecureRandom sr;
     SocketManager socketManager;
     final WebAPI webApi;
- //   private final SignalServiceDataStoreImpl signalServiceDataStore = new SignalServiceDataStoreImpl();
+    //   private final SignalServiceDataStoreImpl signalServiceDataStore = new SignalServiceDataStoreImpl();
     private CredentialsProvider credentialsProvider;
-    
+
     private final Elita elita;
     HttpClient httpClient;
     private RemoteConfigResponse remoteConfig;
@@ -93,7 +101,7 @@ static final String PREKEY_PATH = "/v2/keys/%s";
     public SignalProtocolStore getSignalServiceDataStore() {
         return store;
     }
-    
+
     public void startup() {
         this.socketManager = this.webApi.connect(User.getUserName(), User.getPassword());
         this.webApi.getConfig();
@@ -108,10 +116,10 @@ static final String PREKEY_PATH = "/v2/keys/%s";
         new SecureRandom().nextBytes(b);
         String password = new String(b, StandardCharsets.UTF_8);
         password = Base64.getEncoder().encodeToString(password.getBytes());
-        
+
         password = password.substring(0, password.length() - 2);
         regid = new SecureRandom().nextInt(16384) & 0x3fff;
-        webApi.confirmCode(pm.getNumber(), pm.getProvisioningCode(), password, 
+        webApi.confirmCode(pm.getNumber(), pm.getProvisioningCode(), password,
                 regid, deviceName, pm.getUuid());
         System.err.println("got code");
         this.credentialsProvider = new StaticCredentialsProvider(UUID.fromString(pm.getUuid()),
@@ -120,29 +128,75 @@ static final String PREKEY_PATH = "/v2/keys/%s";
         store = new InMemorySignalProtocolStore(identityKeypair, regid);
         finishRegistration();
     }
-    
+
     private void finishRegistration() throws IOException {
         this.webApi.authenticate();
-        connect(true);
+        try {
+            connect(true);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            throw new IOException(ex);
+        }
     }
-    
+
     int connectCount = 0;
     boolean connecting = false;
-    
-    private void connect(boolean firstrun) throws IOException {
+
+    private void connect(boolean firstrun) throws IOException, InvalidKeyException, org.whispersystems.libsignal.UntrustedIdentityException {
         if (connecting) {
             Thread.dumpStack();
-            throw new RuntimeException ("Should not connect while connecting!");
+            throw new RuntimeException("Should not connect while connecting!");
         }
         connecting = true;
         this.webApi.getConfig(msg -> this.remoteConfig = msg);
 
         synchronizeData();
         webApi.registerSupportForUnauthenticatedDelivery();
-        webApi.getKeysForIdentifier();
+        PreKeyResponse response = webApi.getKeysForIdentifier();
+
+        List<PreKeyBundle> bundles = new LinkedList<>();
+
+        for (PreKeyResponseItem device : response.getDevices()) {
+            ECPublicKey preKey = null;
+            ECPublicKey signedPreKey = null;
+            byte[] signedPreKeySignature = null;
+            int preKeyId = -1;
+            int signedPreKeyId = -1;
+
+            if (device.getSignedPreKey() != null) {
+                signedPreKey = device.getSignedPreKey().getPublicKey();
+                signedPreKeyId = device.getSignedPreKey().getKeyId();
+                signedPreKeySignature = device.getSignedPreKey().getSignature();
+            }
+
+            if (device.getPreKey() != null) {
+                preKeyId = device.getPreKey().getKeyId();
+                preKey = device.getPreKey().getPublicKey();
+            }
+
+            PreKeyBundle pkBundle = new PreKeyBundle(device.getRegistrationId(), device.getDeviceId(), preKeyId,
+                    preKey, signedPreKeyId, signedPreKey, signedPreKeySignature,
+                    response.getIdentityKey());
+            SignalProtocolAddress me = new SignalProtocolAddress(webApi.getMyUuid(), device.getDeviceId());
+            if (device.getRegistrationId() != this.regid) {
+                SessionBuilder sb = new SessionBuilder(store, me);
+                sb.process(pkBundle);
+            }
+        }
+//        
+//        for (PreKeyResponseItem item : devkeys) {
+//            int devid = item.getDeviceId();
+//            SignalProtocolAddress spa = new SignalProtocolAddress(webApi.getMyUuid(), devid);
+//            SessionRecord sr = new SessionRecord();
+//            SessionState ss = sr.getSessionState();
+//            
+//            item.getSignedPreKey().
+//            store.storeSession(spa, sr);
+//        }
         webApi.registerCapabilities();
         try {
             sendRequestKeySyncMessage();
+            sendRequestGroupSyncMessage();
 //      await this.confirmKeys(keys);
 //      await this.registrationDone();
         } catch (UntrustedIdentityException ex) {
@@ -151,10 +205,10 @@ static final String PREKEY_PATH = "/v2/keys/%s";
             Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
-    
+
     private void processNewConfiguration(RemoteConfigResponse conf) throws IOException, UntrustedIdentityException {
-        System.err.println("This configList has "+conf.getConfig().size()+" configs.");
-        System.err.println("CFG0 = "+ conf.getConfig().get(0));
+        System.err.println("This configList has " + conf.getConfig().size() + " configs.");
+        System.err.println("CFG0 = " + conf.getConfig().get(0));
         System.err.println("C0name = " + conf.getConfig().get(0).getName());
         System.err.println("C0val = " + conf.getConfig().get(0).getValue());
         for (Config config : conf.getConfig()) {
@@ -167,54 +221,58 @@ static final String PREKEY_PATH = "/v2/keys/%s";
             }
         }
     }
-    
+
     private void sendRequestKeySyncMessage() throws IOException, UntrustedIdentityException, InvalidKeyException {
         String myUuid = webApi.getMyUuid();
         String myNumber = webApi.getMyNumber();
-        
+
         Request request = Request.newBuilder().setType(Request.Type.KEYS).build();
         RequestMessage requestMessage = new RequestMessage(request);
         SignalServiceSyncMessage message = SignalServiceSyncMessage.forRequest(requestMessage);
-SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsProvider, store);
-//        SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsProvider, signalServiceDataStore, ReentrantSessionLock.INSTANCE);
-        OutgoingPushMessageList messages = sender.createMessageBundle(message, org.whispersystems.libsignal.util.guava.Optional.absent());
-       webApi.fetchHttp("PUT", String.format(MESSAGE_PATH, messages.getDestination()), JsonUtil.toJson(messages));
-//
-//        
-//        SignalServiceProtos.Content.Builder     container = SignalServiceProtos.Content.newBuilder();
-//    SignalServiceProtos.SyncMessage.Builder builder   = createSyncMessageBuilder();
-//builder.setRequest(SignalServiceProtos.SyncMessage.Request.newBuilder(request));
-//        SignalServiceProtos.Content content = container.setSyncMessage(builder).build();
-//        System.err.println("SYNCREQUESTMESSAGE = "+ content);
-//        
-//          long timestamp = message.getSent().isPresent() ? message.getSent().get().getTimestamp()
-//                                                   : System.currentTimeMillis();
-//
-//    EnvelopeContent envelopeContent = EnvelopeContent.encrypted(content, ContentHint.IMPLICIT, org.whispersystems.libsignal.util.guava.Optional.absent());
-//        System.err.println("EVContent = "+envelopeContent);
-//
-//        const request = new protobuf_1.SignalService.SyncMessage.Request();
-//        request.type = protobuf_1.SignalService.SyncMessage.Request.Type.KEYS;
-//        const syncMessage = this.createSyncMessage();
-//        syncMessage.request = request;
-//        const contentMessage = new protobuf_1.SignalService.Content();
-//        contentMessage.syncMessage = syncMessage;
-//        const { ContentHint } = protobuf_1.SignalService.UnidentifiedSenderMessage.Message;
-//        return this.sendIndividualProto({
-//            identifier: myUuid || myNumber,
-//            proto: contentMessage,
-//            timestamp: Date.now(),
-//            contentHint: ContentHint.IMPLICIT,
-//            options,
-//        });
+        SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsProvider, store);
 
+        OutgoingPushMessageList messages = sender.createMessageBundle(message, org.whispersystems.libsignal.util.guava.Optional.absent());
+        String destination = messages.getDestination();
+        System.err.println("dest = " + destination);
+        webApi.fetch(String.format(MESSAGE_PATH, messages.getDestination()), "PUT", JsonUtil.toJson(messages));
     }
+    
+private void sendRequestContactSyncMessage() throws IOException, UntrustedIdentityException, InvalidKeyException {
+        String myUuid = webApi.getMyUuid();
+        String myNumber = webApi.getMyNumber();
+    System.err.println("SYNC CONTACTS");
+        Request request = Request.newBuilder().setType(Request.Type.CONTACTS).build();
+        RequestMessage requestMessage = new RequestMessage(request);
+        SignalServiceSyncMessage message = SignalServiceSyncMessage.forRequest(requestMessage);
+        SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsProvider, store);
+
+        OutgoingPushMessageList messages = sender.createMessageBundle(message, org.whispersystems.libsignal.util.guava.Optional.absent());
+        String destination = messages.getDestination();
+        System.err.println("CONTACTdest = " + destination);
+        webApi.fetch(String.format(MESSAGE_PATH, messages.getDestination()), "PUT", JsonUtil.toJson(messages));
+    }
+
+private void sendRequestGroupSyncMessage() throws IOException, UntrustedIdentityException, InvalidKeyException {
+        String myUuid = webApi.getMyUuid();
+        String myNumber = webApi.getMyNumber();
+    System.err.println("SYNC GROUPS");
+        Request request = Request.newBuilder().setType(Request.Type.GROUPS).build();
+
+        RequestMessage requestMessage = new RequestMessage(request);
+        SignalServiceSyncMessage message = SignalServiceSyncMessage.forRequest(requestMessage);
+        SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsProvider, store);
+
+        OutgoingPushMessageList messages = sender.createMessageBundle(message, org.whispersystems.libsignal.util.guava.Optional.absent());
+        String destination = messages.getDestination();
+        System.err.println("GROUPDEST = " + destination);
+        webApi.fetch(String.format(MESSAGE_PATH, messages.getDestination()), "PUT", JsonUtil.toJson(messages));
+    }
+
     private void synchronizeData() throws IOException {
         long startDate = ChronoUnit.DAYS.between(Instant.EPOCH, Instant.now());
         long endDate = startDate + 7;
         webApi.getGroupCredentials(startDate, endDate);
     }
-
 
     public void provisioningMessageReceived(WebSocketRequestMessage requestMessage) {
         String path = requestMessage.getPath();
@@ -295,7 +353,7 @@ SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsPr
         List<PreKeyRecord> records = KeyUtil.generatePreKeys(100);
         registerPreKeys(identityKeypair.getPublicKey(), signedPreKey, records);
     }
-    
+
     public void registerPreKeys(IdentityKey identityKey,
             SignedPreKeyRecord signedPreKey,
             List<PreKeyRecord> records)
@@ -314,26 +372,26 @@ SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsPr
                 signedPreKey.getKeyPair().getPublicKey(),
                 signedPreKey.getSignature());
 
-                ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = new ObjectMapper();
 
         String jsonData = mapper.writeValueAsString(new PreKeyState(entities, signedPreKeyEntity, identityKey));
-       // NOT USING SocketManager, hence http
-        this.webApi.fetchHttp("PUT", String.format(PREKEY_PATH, ""),jsonData);
+        // NOT USING SocketManager, hence http
+        this.webApi.fetchHttp("PUT", String.format(PREKEY_PATH, ""), jsonData);
     }
-private static SignalServiceProtos.SyncMessage.Builder createSyncMessageBuilder() {
-    SecureRandom random  = new SecureRandom();
-    byte[]       padding = Util.getRandomLengthBytes(512);
-    random.nextBytes(padding);
 
-    SignalServiceProtos.SyncMessage.Builder builder = SignalServiceProtos.SyncMessage.newBuilder();
-    builder.setPadding(ByteString.copyFrom(padding));
+    private static SignalServiceProtos.SyncMessage.Builder createSyncMessageBuilder() {
+        SecureRandom random = new SecureRandom();
+        byte[] padding = Util.getRandomLengthBytes(512);
+        random.nextBytes(padding);
 
-    return builder;
-  }
+        SignalServiceProtos.SyncMessage.Builder builder = SignalServiceProtos.SyncMessage.newBuilder();
+        builder.setPadding(ByteString.copyFrom(padding));
+
+        return builder;
+    }
 
     private void InMemorySignalProtocolStore(IdentityKeyPair identityKeypair, int regid) {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
-
 
 }
