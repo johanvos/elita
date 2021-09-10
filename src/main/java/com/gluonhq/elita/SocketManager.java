@@ -5,6 +5,8 @@
  */
 package com.gluonhq.elita;
 
+import com.google.protobuf.ByteString;
+import com.google.protobuf.InvalidProtocolBufferException;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -28,6 +30,8 @@ import org.eclipse.jetty.util.log.StdErrLog;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.eclipse.jetty.websocket.client.ClientUpgradeRequest;
 import org.eclipse.jetty.websocket.client.WebSocketClient;
+import org.whispersystems.signalservice.internal.push.SignalServiceProtos;
+import org.whispersystems.signalservice.internal.push.SignalServiceProtos.Envelope;
 import org.whispersystems.websocket.messages.WebSocketRequestMessage;
 import org.whispersystems.websocket.messages.WebSocketResponseMessage;
 
@@ -272,8 +276,18 @@ public class SocketManager {
         @Override
         public void onReceivedRequest(WebSocketRequestMessage requestMessage) {
             String path = requestMessage.getPath();
-                 System.err.println("[JVDBG[ normal ORR for path "+path+": "+ requestMessage);
-           // client.provisioningMessageReceived(requestMessage);
+            System.err.println("[JVDBG[ normal ORR for path "+path+": "+ requestMessage);
+            if (requestMessage.getBody().isPresent()) {
+                System.err.println("[JVDBG] WebSocket Request body = " + new String(requestMessage.getBody().get()));
+                try {
+                    Envelope env = Envelope.parseFrom(requestMessage.getBody().get());
+                    ByteString bs = env.getContent();
+                    System.err.println("body = "+ new String(bs.toByteArray()));
+                } catch (InvalidProtocolBufferException ex) {
+                    Logger.getLogger(SocketManager.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            }           
+// client.provisioningMessageReceived(requestMessage);
 
         }
 
