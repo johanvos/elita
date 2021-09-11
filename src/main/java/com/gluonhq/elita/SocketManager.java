@@ -30,6 +30,8 @@ import org.eclipse.jetty.util.log.StdErrLog;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.eclipse.jetty.websocket.client.ClientUpgradeRequest;
 import org.eclipse.jetty.websocket.client.WebSocketClient;
+import org.whispersystems.libsignal.InvalidVersionException;
+import org.whispersystems.signalservice.api.messages.SignalServiceEnvelope;
 import org.whispersystems.signalservice.internal.push.SignalServiceProtos;
 import org.whispersystems.signalservice.internal.push.SignalServiceProtos.Envelope;
 import org.whispersystems.websocket.messages.WebSocketRequestMessage;
@@ -280,10 +282,19 @@ public class SocketManager {
             if (requestMessage.getBody().isPresent()) {
                 System.err.println("[JVDBG] WebSocket Request body = " + new String(requestMessage.getBody().get()));
                 try {
-                    Envelope env = Envelope.parseFrom(requestMessage.getBody().get());
-                    ByteString bs = env.getContent();
-                    System.err.println("body = "+ new String(bs.toByteArray()));
+                    
+                    SignalServiceEnvelope sse = new SignalServiceEnvelope(requestMessage.getBody().get(),"foo", false);
+                    System.err.println("[JVDBG] got sse: source = "+sse.getSourceIdentifier()+ 
+                            ", dest = "+sse.getUuid()+", type = "+sse.getType());
+//                    Envelope env = Envelope.parseFrom(requestMessage.getBody().get());
+//                    
+//                    ByteString bs = env.getContent();
+//                    System.err.println("body = "+ new String(bs.toByteArray()));
                 } catch (InvalidProtocolBufferException ex) {
+                    Logger.getLogger(SocketManager.class.getName()).log(Level.SEVERE, null, ex);
+                } catch (InvalidVersionException ex) {
+                    Logger.getLogger(SocketManager.class.getName()).log(Level.SEVERE, null, ex);
+                } catch (IOException ex) {
                     Logger.getLogger(SocketManager.class.getName()).log(Level.SEVERE, null, ex);
                 }
             }           

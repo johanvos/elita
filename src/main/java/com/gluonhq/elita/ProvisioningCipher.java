@@ -31,8 +31,7 @@ public class ProvisioningCipher {
 
     ProvisionMessage decrypt(ProvisionEnvelope envelope) throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException, java.security.InvalidKeyException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException, InvalidProtocolBufferException {
         ByteString masterEphemeral = envelope.getPublicKey();
-      //  ECPublicKey ecPub = new ECPublicKey(masterEphemeral.toByteArray());
-          ECPublicKey ecPub = Curve.decodePoint(masterEphemeral.toByteArray(),0);
+        ECPublicKey ecPub = Curve.decodePoint(masterEphemeral.toByteArray(),0);
      
         ByteString message = envelope.getBody();
         if (message.byteAt(0) != 1 )  {
@@ -68,8 +67,7 @@ public class ProvisioningCipher {
         ProvisionMessage pm = ProvisionMessage.parseFrom(doFinal);
         System.err.println("NR = " + pm.getNumber());
         ECPrivateKey privateKey = Curve.decodePrivatePoint(pm.getIdentityKeyPrivate().toByteArray());
-        // ECPublicKey publicKey = privateKey.publicKey();
-     ECPublicKey publicKey = Curve.createPublicKeyFromPrivateKey(pm.getIdentityKeyPrivate().toByteArray());
+        ECPublicKey publicKey = Curve.createPublicKeyFromPrivateKey(pm.getIdentityKeyPrivate().toByteArray());
      
         ECKeyPair keyPair = new ECKeyPair(publicKey, privateKey);
         System.err.println("identitykp = "+ keyPair);
