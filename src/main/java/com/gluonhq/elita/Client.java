@@ -26,6 +26,7 @@ import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.eclipse.jetty.client.HttpClient;
+import org.eclipse.jetty.client.api.ContentResponse;
 import org.thoughtcrime.securesms.crypto.ReentrantSessionLock;
 import org.whispersystems.libsignal.IdentityKey;
 import org.whispersystems.libsignal.IdentityKeyPair;
@@ -48,8 +49,12 @@ import org.whispersystems.signalservice.api.crypto.UnidentifiedAccess;
 //import org.whispersystems.signalservice.api.crypto.ContentHint;
 //import org.whispersystems.signalservice.api.crypto.EnvelopeContent;
 import org.whispersystems.signalservice.api.crypto.UntrustedIdentityException;
+import org.whispersystems.signalservice.api.messages.SignalServiceAttachment;
+import org.whispersystems.signalservice.api.messages.SignalServiceAttachmentPointer;
+import org.whispersystems.signalservice.api.messages.multidevice.ContactsMessage;
 import org.whispersystems.signalservice.api.messages.multidevice.RequestMessage;
 import org.whispersystems.signalservice.api.messages.multidevice.SignalServiceSyncMessage;
+import org.whispersystems.signalservice.api.push.SignalServiceAddress;
 import org.whispersystems.signalservice.api.push.SignedPreKeyEntity;
 import org.whispersystems.signalservice.api.push.TrustStore;
 import org.whispersystems.signalservice.api.util.CredentialsProvider;
@@ -96,6 +101,8 @@ public class Client implements WebSocketInterface.Listener {
     private IdentityKeyPair identityKeypair;
     private int regid;
     SignalProtocolStore store;
+    private SignalProtocolAddress me;
+    private SignalServiceAddress signalServiceAddress;
 
     public Client(Elita elita) {
         this.elita = elita;
@@ -108,6 +115,14 @@ public class Client implements WebSocketInterface.Listener {
     // we return the impl here, since we need the method to store device-identifier
     public SignalProtocolStore getSignalServiceDataStore() {
         return store;
+    }
+    
+    public SignalServiceAddress getSignalServiceAddress() {
+        return this.signalServiceAddress;
+    }
+
+    public SignalProtocolAddress getSignalLocalAddress() {
+        return me;
     }
 
     public void startup() {
@@ -130,8 +145,11 @@ public class Client implements WebSocketInterface.Listener {
         webApi.confirmCode(pm.getNumber(), pm.getProvisioningCode(), password,
                 regid, deviceName, pm.getUuid());
         System.err.println("got code");
-        this.credentialsProvider = new StaticCredentialsProvider(UUID.fromString(pm.getUuid()),
+        UUID uuid = UUID.fromString(pm.getUuid());
+        this.credentialsProvider = new StaticCredentialsProvider(uuid,
                 pm.getNumber(), password, "signalingkey");
+        this.signalServiceAddress = new SignalServiceAddress(uuid, pm.getNumber());
+
         generateAndRegisterKeys();
         store = new InMemorySignalProtocolStore(identityKeypair, regid);
         finishRegistration();
@@ -185,7 +203,7 @@ public class Client implements WebSocketInterface.Listener {
             PreKeyBundle pkBundle = new PreKeyBundle(device.getRegistrationId(), device.getDeviceId(), preKeyId,
                     preKey, signedPreKeyId, signedPreKey, signedPreKeySignature,
                     response.getIdentityKey());
-            SignalProtocolAddress me = new SignalProtocolAddress(webApi.getMyUuid(), device.getDeviceId());
+            me = new SignalProtocolAddress(webApi.getMyUuid(), device.getDeviceId());
             if (device.getRegistrationId() != this.regid) {
                 SessionBuilder sb = new SessionBuilder(store, me);
                 sb.process(pkBundle);
@@ -203,8 +221,9 @@ public class Client implements WebSocketInterface.Listener {
 //        }
         webApi.registerCapabilities();
         try {
-            oldsendRequestKeySyncMessage();
+            sendRequestKeySyncMessage();
             sendRequestGroupSyncMessage();
+            sendRequestContactSyncMessage();
 //      await this.confirmKeys(keys);
 //      await this.registrationDone();
         } catch (UntrustedIdentityException ex) {
@@ -230,7 +249,7 @@ public class Client implements WebSocketInterface.Listener {
         }
     }
 
-    private void oldsendRequestKeySyncMessage() throws IOException, UntrustedIdentityException, InvalidKeyException {
+    private void sendRequestKeySyncMessage() throws IOException, UntrustedIdentityException, InvalidKeyException {
         String myUuid = webApi.getMyUuid();
         String myNumber = webApi.getMyNumber();
 
@@ -403,7 +422,7 @@ public class Client implements WebSocketInterface.Listener {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
-    private void sendRequestKeySyncMessage() throws IOException, UntrustedIdentityException, InvalidKeyException {
+    private void differentsendRequestKeySyncMessage() throws IOException, UntrustedIdentityException, InvalidKeyException {
         String myUuid = webApi.getMyUuid();
         String myNumber = webApi.getMyNumber();
 
@@ -432,6 +451,18 @@ public class Client implements WebSocketInterface.Listener {
         result.put(0, cdn0Urls);
         result.put(2, cdn2Urls);
         return Collections.unmodifiableMap(result);
+    }
+
+    void processSyncMessage(SignalServiceSyncMessage sssm) {
+        if (sssm.getContacts().isPresent()) {
+            ContactsMessage msg = sssm.getContacts().get();
+            SignalServiceAttachment att = msg.getContactsStream();
+            SignalServiceAttachmentPointer p = att.asPointer();
+            int cdnNumber = p.getCdnNumber();
+            String path = new String(p.getRemoteId().getV3().get());
+            ContentResponse response = webApi.fetchCdnHttp("GET", "/attachments/"+ path, null);
+            
+        }
     }
 
 }

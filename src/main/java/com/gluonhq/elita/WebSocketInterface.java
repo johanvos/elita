@@ -87,7 +87,6 @@ public class WebSocketInterface {
             } else {
                 System.out.println("Received websocket message of unknown type: " + message.getType());
             }
-
         } catch (InvalidMessageException e) {
             e.printStackTrace();
         }

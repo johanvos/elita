@@ -16,6 +16,10 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.eclipse.jetty.client.HttpClient;
+import org.eclipse.jetty.client.api.ContentResponse;
+import org.eclipse.jetty.client.api.Request;
+import org.eclipse.jetty.util.ssl.SslContextFactory;
 import signalservice.DeviceMessages.ProvisionMessage;
 
 /**
@@ -83,16 +87,46 @@ public class Elita extends Application {
         Platform.runLater(() -> root.getChildren().add(iv));
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         try {
             Security.addProvider(new BouncyCastleProvider());
             Security.setProperty("crypto.policy", "unlimited");
             int maxKeySize = javax.crypto.Cipher.getMaxAllowedKeyLength("AES");
             System.err.println("max AES keysize = "+maxKeySize);
             launch();
+            //getAttachment();
         } catch (NoSuchAlgorithmException ex) {
             Logger.getLogger(Elita.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
 
+    private static void getAttachment() throws Exception {
+              SslContextFactory scf = new SslContextFactory(true);
+        HttpClient httpClient = new HttpClient(scf);
+        try {
+            httpClient.start();
+        } catch (Exception ex) {
+            Logger.getLogger(SocketManager.class.getName()).log(Level.SEVERE, null, ex);
+        }
+//        String[] headerArr = new String[headers.size()];
+//        headers.toArray(headerArr);
+        ContentResponse res = httpClient.GET("https://cdn2.signal.org/attachments/OHmG9QNNYMiWPyDPEK9B");
+        System.err.println("\n\n\n\n\n\n\n\nres = "+res);
+//        String url ="https://cdn2.signal.org";
+//String path = "attachments/OHmG9QNNYMiWPyDPEK9B";
+//String method = "GET";
+//System.err.println("create request to "+url);
+//        Request request = httpClient.newRequest(url)
+//                .method(method).path(path);
+//                ContentResponse response = null;
+//
+//           try {
+//            response = request.send();
+//            System.err.println("got response: "+response);
+//            System.err.println("RESP " + response.getContentAsString());
+//            httpClient.stop();
+//        } catch (Exception ex) {
+//           ex.printStackTrace();
+//        }
+    }
 }

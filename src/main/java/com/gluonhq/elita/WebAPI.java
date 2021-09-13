@@ -277,6 +277,15 @@ public class WebAPI {
         return response;
     }
     
+    ContentResponse fetchCdnHttp(String method, String path, String jsonData) {
+        System.err.println("[SEND] fetchhttp: "+method+" "+path);
+        String authbase = uuid+"."+deviceId+":"+pwd;
+        String basicAuth = Base64.getEncoder().encodeToString(authbase.getBytes());
+        ContentResponse response = this.socketManager.httpRequest("https://cdn2.signal.org", method, path, jsonData, null);
+        System.err.println("got response: "+response);
+        return response;
+    }
+    
     List<String> getDefaultHeaders() {
         List<String> answer = new LinkedList<>();
         answer.add("content-type:application/json;charset=utf-8");

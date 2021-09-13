@@ -30,10 +30,21 @@ import org.eclipse.jetty.util.log.StdErrLog;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.eclipse.jetty.websocket.client.ClientUpgradeRequest;
 import org.eclipse.jetty.websocket.client.WebSocketClient;
+import org.signal.libsignal.metadata.certificate.CertificateValidator;
+import org.whispersystems.libsignal.InvalidKeyException;
 import org.whispersystems.libsignal.InvalidVersionException;
+import org.whispersystems.libsignal.ecc.Curve;
+import org.whispersystems.libsignal.ecc.ECPublicKey;
+import org.whispersystems.libsignal.state.SignalProtocolStore;
+import org.whispersystems.signalservice.api.crypto.SignalServiceCipher;
+import org.whispersystems.signalservice.api.messages.SignalServiceContent;
 import org.whispersystems.signalservice.api.messages.SignalServiceEnvelope;
+import org.whispersystems.signalservice.api.messages.multidevice.SignalServiceSyncMessage;
+import org.whispersystems.signalservice.api.messages.multidevice.StickerPackOperationMessage;
+import org.whispersystems.signalservice.api.push.SignalServiceAddress;
 import org.whispersystems.signalservice.internal.push.SignalServiceProtos;
 import org.whispersystems.signalservice.internal.push.SignalServiceProtos.Envelope;
+import org.whispersystems.util.Base64;
 import org.whispersystems.websocket.messages.WebSocketRequestMessage;
 import org.whispersystems.websocket.messages.WebSocketResponseMessage;
 
@@ -45,9 +56,10 @@ public class SocketManager {
 
     static final String SERVER_NAME = "textsecure-service.whispersystems.org";
     static final String AGENT="Signal-Desktop/5.14.0 Linux";
+    static final String UNIDENTIFIED_SENDER_TRUST_ROOT = "BXu6QIKVz5MA8gstzfOgRQGqyLqOwNKHL6INkv3IHWMF";
     private final Client client;
     private final String url;
-    private HttpClient httpClient;
+   // private HttpClient httpClient;
     
     private String username = null;
     private String password = null;
@@ -60,6 +72,14 @@ public class SocketManager {
         private final Map<Long, Consumer<WebSocketResponseMessage>> pending = new HashMap<>();
 
     long requestCounter = 0;
+  public static CertificateValidator getCertificateValidator() {
+    try {
+      ECPublicKey unidentifiedSenderTrustRoot = Curve.decodePoint(Base64.decode(UNIDENTIFIED_SENDER_TRUST_ROOT), 0);
+      return new CertificateValidator(unidentifiedSenderTrustRoot);
+    } catch (InvalidKeyException | IOException e) {
+      throw new AssertionError(e);
+    }
+  }
 
     public SocketManager(Client client, String url, String ca, String version, String proxyUrl) {
         this.url = url;
@@ -133,7 +153,7 @@ public class SocketManager {
         System.err.println("done settng logger");
         WebSocketInterface answer = new WebSocketInterface();
         SslContextFactory scf = new SslContextFactory(true);
-        httpClient = new HttpClient(scf);
+        HttpClient httpClient = new HttpClient(scf);
         httpClient.setUserAgentField(new HttpField(HttpHeader.USER_AGENT,AGENT));
         WebSocketClient holder = new WebSocketClient(httpClient);
         Thread t = new Thread() {
@@ -223,8 +243,12 @@ public class SocketManager {
      * @return 
      */
     public ContentResponse httpRequest (String method, String path, String body, String ba) {
+        return httpRequest(this.url, method, path, body, ba);
+    }
+    
+    public ContentResponse httpRequest (String url, String method, String path, String body, String ba) {
       SslContextFactory scf = new SslContextFactory(true);
-        httpClient = new HttpClient(scf);
+        HttpClient httpClient = new HttpClient(scf);
         try {
             httpClient.start();
         } catch (Exception ex) {
@@ -232,11 +256,15 @@ public class SocketManager {
         }
 //        String[] headerArr = new String[headers.size()];
 //        headers.toArray(headerArr);
+System.err.println("create request to "+url);
         Request request = httpClient.newRequest(url)
-                .agent(AGENT)
-                .header(HttpHeader.AUTHORIZATION, "Basic " + ba)
-                .header("X-Signal-Agent", "OWD")
                 .method(method).path(path);
+        
+            request.agent(AGENT);
+            request.header("X-Signal-Agent", "OWD");
+        if (ba != null) {
+            request.header(HttpHeader.AUTHORIZATION, "Basic " + ba);
+        }
         if (body != null){
             request.content(new StringContentProvider(body), "application/json");
         }
@@ -248,21 +276,18 @@ public class SocketManager {
         System.err.println("proto = "+request.getScheme());
         System.err.println("query = "+request.getQuery());
         System.err.println("headers = "+request.getHeaders());
+        System.err.println("URI = "+request.getURI());
         ContentResponse response = null;
         try {
-           response = request.send();
+            response = request.send();
             System.err.println("got response: "+response);
             System.err.println("RESP " + response.getContentAsString());
-        } catch (InterruptedException ex) {
-            Logger.getLogger(SocketManager.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (TimeoutException ex) {
-            Logger.getLogger(SocketManager.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (ExecutionException ex) {
-            Logger.getLogger(SocketManager.class.getName()).log(Level.SEVERE, null, ex);
+            httpClient.stop();
+        } catch (Exception ex) {
+           ex.printStackTrace();
         }
         return response;        
     }
-    
 
     class WebSocketListener implements WebSocketInterface.Listener {
 
@@ -278,28 +303,51 @@ public class SocketManager {
         @Override
         public void onReceivedRequest(WebSocketRequestMessage requestMessage) {
             String path = requestMessage.getPath();
-            System.err.println("[JVDBG[ normal ORR for path "+path+": "+ requestMessage);
+            System.err.println("[JVDBG[ normal OnReceivedRequest for path "+path+": "+ requestMessage);
             if (requestMessage.getBody().isPresent()) {
-                System.err.println("[JVDBG] WebSocket Request body = " + new String(requestMessage.getBody().get()));
+                System.err.println("[JVDBG] WebSocket Request body present " );
                 try {
-                    
                     SignalServiceEnvelope sse = new SignalServiceEnvelope(requestMessage.getBody().get(),"foo", false);
                     System.err.println("[JVDBG] got sse: source = "+sse.getSourceIdentifier()+ 
                             ", dest = "+sse.getUuid()+", type = "+sse.getType());
-//                    Envelope env = Envelope.parseFrom(requestMessage.getBody().get());
-//                    
-//                    ByteString bs = env.getContent();
-//                    System.err.println("body = "+ new String(bs.toByteArray()));
+                    SignalServiceContent content = mydecrypt(sse);
+                    System.err.println("decrypted: "+content);
+                    if (content.getSyncMessage().isPresent()) {
+                        SignalServiceSyncMessage sssm = content.getSyncMessage().get();
+                        System.err.println("REQ ? " + sssm.getRequest());
+                        System.err.println("CONTACTS? " + sssm.getContacts());
+                        System.err.println("GROUPS? " + sssm.getGroups());
+                        System.err.println("CONFIG? " + sssm.getConfiguration());
+                        System.err.println("STICKER? " + sssm.getStickerPackOperations());
+                                                client.processSyncMessage(sssm);
+
+                        if (sssm.getStickerPackOperations().isPresent()) {
+                            List<StickerPackOperationMessage> spom = sssm.getStickerPackOperations().get();
+                            System.err.println("spom = " + spom);
+                        }
+                    }
+                parent.sendResponse(requestMessage.getRequestId(), 200, "OK", "world!".getBytes());
+                    System.err.println("ACKED!");
                 } catch (InvalidProtocolBufferException ex) {
                     Logger.getLogger(SocketManager.class.getName()).log(Level.SEVERE, null, ex);
                 } catch (InvalidVersionException ex) {
                     Logger.getLogger(SocketManager.class.getName()).log(Level.SEVERE, null, ex);
-                } catch (IOException ex) {
+                } catch (Exception ex) {
+                    ex.printStackTrace();
                     Logger.getLogger(SocketManager.class.getName()).log(Level.SEVERE, null, ex);
                 }
             }           
 // client.provisioningMessageReceived(requestMessage);
 
+        }
+        
+        
+        SignalServiceContent mydecrypt(SignalServiceEnvelope sse) throws Exception {
+            SignalServiceCipher cipher = new SignalServiceCipher(client.getSignalServiceAddress(),
+                             client.getSignalServiceDataStore(),
+                             getCertificateValidator());
+            SignalServiceContent content = cipher.decrypt(sse);
+            return content;
         }
 
         /**
@@ -321,6 +369,7 @@ public class SocketManager {
             if (responseMessage.getBody().isPresent()) {
                 System.err.println("[JVDBG] Got response body: " + new String(responseMessage.getBody().get()));
             }
+
         }
 
         @Override
