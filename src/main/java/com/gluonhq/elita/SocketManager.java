@@ -280,8 +280,9 @@ System.err.println("create request to "+url);
         ContentResponse response = null;
         try {
             response = request.send();
-            System.err.println("got response: "+response);
-            System.err.println("RESP " + response.getContentAsString());
+            System.err.println("Got response from "+ request.getURI());
+//            System.err.println("got response: "+response);
+//            System.err.println("RESP " + response.getContentAsString());
             httpClient.stop();
         } catch (Exception ex) {
            ex.printStackTrace();

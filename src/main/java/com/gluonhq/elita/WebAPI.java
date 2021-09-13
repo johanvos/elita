@@ -282,7 +282,6 @@ public class WebAPI {
         String authbase = uuid+"."+deviceId+":"+pwd;
         String basicAuth = Base64.getEncoder().encodeToString(authbase.getBytes());
         ContentResponse response = this.socketManager.httpRequest("https://cdn2.signal.org", method, path, jsonData, null);
-        System.err.println("got response: "+response);
         return response;
     }
     

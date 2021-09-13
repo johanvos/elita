@@ -1,5 +1,12 @@
 package com.gluonhq.elita;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.security.NoSuchAlgorithmException;
 import java.security.Security;
 import java.util.logging.Level;
@@ -20,6 +27,12 @@ import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.jetty.client.api.ContentResponse;
 import org.eclipse.jetty.client.api.Request;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
+import org.whispersystems.signalservice.api.messages.multidevice.DeviceContact;
+import org.whispersystems.signalservice.api.messages.multidevice.DeviceContactsInputStream;
+import org.whispersystems.signalservice.api.messages.shared.SharedContact;
+import org.whispersystems.signalservice.internal.push.SignalServiceProtos;
+import org.whispersystems.signalservice.internal.push.SignalServiceProtos.ContactDetails;
+import org.whispersystems.signalservice.internal.push.SignalServiceProtos.ContactDetails.Avatar;
 import signalservice.DeviceMessages.ProvisionMessage;
 
 /**
@@ -93,40 +106,45 @@ public class Elita extends Application {
             Security.setProperty("crypto.policy", "unlimited");
             int maxKeySize = javax.crypto.Cipher.getMaxAllowedKeyLength("AES");
             System.err.println("max AES keysize = "+maxKeySize);
-            launch();
-            //getAttachment();
+         //  // launch();
+            buildContacts();
+            readContacts();
         } catch (NoSuchAlgorithmException ex) {
             Logger.getLogger(Elita.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
-
-    private static void getAttachment() throws Exception {
-              SslContextFactory scf = new SslContextFactory(true);
-        HttpClient httpClient = new HttpClient(scf);
-        try {
-            httpClient.start();
-        } catch (Exception ex) {
-            Logger.getLogger(SocketManager.class.getName()).log(Level.SEVERE, null, ex);
+    
+    private static void readContacts() throws FileNotFoundException, IOException {
+        File f = new File("/tmp/myin");
+        InputStream ois = new FileInputStream(f);
+        DeviceContactsInputStream is = new DeviceContactsInputStream(ois);
+        DeviceContact dc = is.read();
+        while (dc != null) {
+            System.err.println("Got contact: "+dc);
+            dc = is.read();
         }
-//        String[] headerArr = new String[headers.size()];
-//        headers.toArray(headerArr);
-        ContentResponse res = httpClient.GET("https://cdn2.signal.org/attachments/OHmG9QNNYMiWPyDPEK9B");
-        System.err.println("\n\n\n\n\n\n\n\nres = "+res);
-//        String url ="https://cdn2.signal.org";
-//String path = "attachments/OHmG9QNNYMiWPyDPEK9B";
-//String method = "GET";
-//System.err.println("create request to "+url);
-//        Request request = httpClient.newRequest(url)
-//                .method(method).path(path);
-//                ContentResponse response = null;
-//
-//           try {
-//            response = request.send();
-//            System.err.println("got response: "+response);
-//            System.err.println("RESP " + response.getContentAsString());
-//            httpClient.stop();
-//        } catch (Exception ex) {
-//           ex.printStackTrace();
+
+        
+//        SignalServiceProtos.ContactDetails parseFrom = 
+//                SignalServiceProtos.ContactDetails.parseDelimitedFrom(ois);
+//        while (parseFrom != null) {
+//            System.err.println("\ndetails = " + parseFrom.getAllFields() + "\n");
+//            Avatar avatar = parseFrom.getAvatar();
+//            System.err.println("avatar = "+ avatar.getAllFields());
+//            parseFrom = SignalServiceProtos.ContactDetails.parseDelimitedFrom(is);
 //        }
+    }
+    
+    private static void buildContacts() throws FileNotFoundException, IOException {
+        ContactDetails.Builder cdb = SignalServiceProtos.ContactDetails.newBuilder();
+        cdb.setName("BRAM");
+        cdb.setNumber("+32474742283");
+        Avatar.Builder ab = SignalServiceProtos.ContactDetails.Avatar.newBuilder();
+        ContactDetails cd = cdb.build();
+        byte[] b = cd.toByteArray();
+        File f = new File("/tmp/cre");
+        FileOutputStream fos = new FileOutputStream(f);
+        fos.write(b);
+    
     }
 }

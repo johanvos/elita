@@ -6,13 +6,18 @@ import com.gluonhq.elita.crypto.KeyUtil;
 import com.gluonhq.elita.storage.User;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
+import java.io.BufferedReader;
+import java.io.File;
 import org.eclipse.jetty.websocket.api.annotations.WebSocket;
 import org.whispersystems.websocket.messages.WebSocketRequestMessage;
 import org.whispersystems.websocket.messages.WebSocketResponseMessage;
 import org.whispersystems.libsignal.util.guava.Optional;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -31,6 +36,7 @@ import org.thoughtcrime.securesms.crypto.ReentrantSessionLock;
 import org.whispersystems.libsignal.IdentityKey;
 import org.whispersystems.libsignal.IdentityKeyPair;
 import org.whispersystems.libsignal.InvalidKeyException;
+import org.whispersystems.libsignal.InvalidMessageException;
 import org.whispersystems.libsignal.SessionBuilder;
 import org.whispersystems.libsignal.SignalProtocolAddress;
 import org.whispersystems.libsignal.ecc.ECPublicKey;
@@ -45,13 +51,17 @@ import org.whispersystems.signalservice.api.SignalServiceMessagePipe;
 //import org.whispersystems.signalservice.api.SignalServiceDataStore;
 import org.whispersystems.signalservice.api.SignalServiceMessageSender;
 import org.whispersystems.signalservice.api.SignalServiceMessageSender.EventListener;
+import org.whispersystems.signalservice.api.crypto.AttachmentCipherInputStream;
 import org.whispersystems.signalservice.api.crypto.UnidentifiedAccess;
 //import org.whispersystems.signalservice.api.crypto.ContentHint;
 //import org.whispersystems.signalservice.api.crypto.EnvelopeContent;
 import org.whispersystems.signalservice.api.crypto.UntrustedIdentityException;
 import org.whispersystems.signalservice.api.messages.SignalServiceAttachment;
 import org.whispersystems.signalservice.api.messages.SignalServiceAttachmentPointer;
+import org.whispersystems.signalservice.api.messages.SignalServiceAttachmentStream;
 import org.whispersystems.signalservice.api.messages.multidevice.ContactsMessage;
+import org.whispersystems.signalservice.api.messages.multidevice.DeviceContact;
+import org.whispersystems.signalservice.api.messages.multidevice.DeviceContactsInputStream;
 import org.whispersystems.signalservice.api.messages.multidevice.RequestMessage;
 import org.whispersystems.signalservice.api.messages.multidevice.SignalServiceSyncMessage;
 import org.whispersystems.signalservice.api.push.SignalServiceAddress;
@@ -70,6 +80,7 @@ import org.whispersystems.signalservice.internal.push.PreKeyState;
 import org.whispersystems.signalservice.internal.push.RemoteConfigResponse;
 import org.whispersystems.signalservice.internal.push.RemoteConfigResponse.Config;
 import org.whispersystems.signalservice.internal.push.SignalServiceProtos;
+import org.whispersystems.signalservice.internal.push.SignalServiceProtos.ContactDetails;
 import org.whispersystems.signalservice.internal.push.SignalServiceProtos.SyncMessage.Request;
 import org.whispersystems.signalservice.internal.util.JsonUtil;
 import org.whispersystems.signalservice.internal.util.StaticCredentialsProvider;
@@ -453,15 +464,42 @@ public class Client implements WebSocketInterface.Listener {
         return Collections.unmodifiableMap(result);
     }
 
-    void processSyncMessage(SignalServiceSyncMessage sssm) {
+    void processSyncMessage(SignalServiceSyncMessage sssm) throws InvalidMessageException {
         if (sssm.getContacts().isPresent()) {
             ContactsMessage msg = sssm.getContacts().get();
             SignalServiceAttachment att = msg.getContactsStream();
-            SignalServiceAttachmentPointer p = att.asPointer();
-            int cdnNumber = p.getCdnNumber();
-            String path = new String(p.getRemoteId().getV3().get());
+            SignalServiceAttachmentPointer pointer = att.asPointer();
+            int cdnNumber = pointer.getCdnNumber();
+            String path = new String(pointer.getRemoteId().getV3().get());
             ContentResponse response = webApi.fetchCdnHttp("GET", "/attachments/"+ path, null);
-            
+            byte[] bytes = response.getContent();
+            File output = new File("/tmp/"+ path);
+            try {
+                Files.write(output.toPath(), bytes);
+                InputStream is = AttachmentCipherInputStream.createForAttachment(output.getAbsoluteFile(), pointer.getSize().or(0), pointer.getKey(), pointer.getDigest().get());
+                Files.copy(is, new File("/tmp/myin").toPath());
+                
+                DeviceContactsInputStream dcis = new DeviceContactsInputStream(is);
+        //BufferedReader br = new BufferedReader(new InputStreamReader(is));
+//String l = br.readLine();
+//while (l != null) {
+//    System.err.println("L = "+l);
+//    l = br.readLine();
+//}
+                
+//              
+
+//SignalServiceAttachment.Builder builder = SignalServiceAttachment.newStreamBuilder().withStream(is);
+//                SignalServiceAttachmentStream ssas = builder.build();
+
+                ContactDetails parseFrom = ContactDetails.parseFrom(is);
+//                
+//                DeviceContactsInputStream dcis = new DeviceContactsInputStream(is);
+                DeviceContact contact = dcis.read();
+                System.err.println("contact = "+parseFrom);
+            } catch (IOException ex) {
+                Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+            }
         }
     }
 
