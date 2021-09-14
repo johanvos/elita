@@ -1,5 +1,6 @@
 package com.gluonhq.elita;
 
+import com.google.common.io.Files;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -27,6 +28,7 @@ import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.jetty.client.api.ContentResponse;
 import org.eclipse.jetty.client.api.Request;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
+import org.whispersystems.signalservice.api.messages.SignalServiceAttachmentStream;
 import org.whispersystems.signalservice.api.messages.multidevice.DeviceContact;
 import org.whispersystems.signalservice.api.messages.multidevice.DeviceContactsInputStream;
 import org.whispersystems.signalservice.api.messages.shared.SharedContact;
@@ -106,9 +108,9 @@ public class Elita extends Application {
             Security.setProperty("crypto.policy", "unlimited");
             int maxKeySize = javax.crypto.Cipher.getMaxAllowedKeyLength("AES");
             System.err.println("max AES keysize = "+maxKeySize);
-         //  // launch();
-            buildContacts();
-            readContacts();
+            launch();
+            //buildContacts();
+            //readContacts();
         } catch (NoSuchAlgorithmException ex) {
             Logger.getLogger(Elita.class.getName()).log(Level.SEVERE, null, ex);
         }
@@ -120,8 +122,23 @@ public class Elita extends Application {
         DeviceContactsInputStream is = new DeviceContactsInputStream(ois);
         DeviceContact dc = is.read();
         while (dc != null) {
-            System.err.println("Got contact: "+dc);
-            dc = is.read();
+            System.err.println("Got contact: "+dc.getName());
+            if (dc.getAvatar().isPresent()) {
+                SignalServiceAttachmentStream ssas = dc.getAvatar().get();
+                long length = ssas.getLength();
+                InputStream inputStream = ssas.getInputStream();
+                byte[] b = new byte[(int)length];
+                inputStream.read(b);
+                String nr = dc.getAddress().getNumber().get();
+                File img = new File("/tmp/"+nr);
+                Files.write(b, img);
+            }
+            System.err.println("Available? " + ois.available());
+            if (ois.available() == 0) {
+                dc = null;
+            } else {
+                dc = is.read();
+            }
         }
 
         

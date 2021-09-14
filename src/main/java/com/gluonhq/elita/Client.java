@@ -8,6 +8,8 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import org.eclipse.jetty.websocket.api.annotations.WebSocket;
 import org.whispersystems.websocket.messages.WebSocketRequestMessage;
 import org.whispersystems.websocket.messages.WebSocketResponseMessage;
@@ -478,27 +480,35 @@ public class Client implements WebSocketInterface.Listener {
                 Files.write(output.toPath(), bytes);
                 InputStream is = AttachmentCipherInputStream.createForAttachment(output.getAbsoluteFile(), pointer.getSize().or(0), pointer.getKey(), pointer.getDigest().get());
                 Files.copy(is, new File("/tmp/myin").toPath());
-                
-                DeviceContactsInputStream dcis = new DeviceContactsInputStream(is);
-        //BufferedReader br = new BufferedReader(new InputStreamReader(is));
-//String l = br.readLine();
-//while (l != null) {
-//    System.err.println("L = "+l);
-//    l = br.readLine();
-//}
-                
-//              
-
-//SignalServiceAttachment.Builder builder = SignalServiceAttachment.newStreamBuilder().withStream(is);
-//                SignalServiceAttachmentStream ssas = builder.build();
-
-                ContactDetails parseFrom = ContactDetails.parseFrom(is);
-//                
-//                DeviceContactsInputStream dcis = new DeviceContactsInputStream(is);
-                DeviceContact contact = dcis.read();
-                System.err.println("contact = "+parseFrom);
+                readContacts();
             } catch (IOException ex) {
                 Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
+    }
+
+    private static void readContacts() throws FileNotFoundException, IOException {
+        File f = new File("/tmp/myin");
+        InputStream ois = new FileInputStream(f);
+        DeviceContactsInputStream is = new DeviceContactsInputStream(ois);
+        DeviceContact dc = is.read();
+        while (dc != null) {
+            System.err.println("Got contact: "+dc.getName());
+            if (dc.getAvatar().isPresent()) {
+                SignalServiceAttachmentStream ssas = dc.getAvatar().get();
+                long length = ssas.getLength();
+                InputStream inputStream = ssas.getInputStream();
+                byte[] b = new byte[(int)length];
+                inputStream.read(b);
+                String nr = dc.getAddress().getNumber().get();
+                File img = new File("/tmp/"+nr);
+                com.google.common.io.Files.write(b, img);
+            }
+            System.err.println("Available? " + ois.available());
+            if (ois.available() == 0) {
+                dc = null;
+            } else {
+                dc = is.read();
             }
         }
     }
