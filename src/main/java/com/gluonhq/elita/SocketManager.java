@@ -304,7 +304,7 @@ System.err.println("create request to "+url);
         @Override
         public void onReceivedRequest(WebSocketRequestMessage requestMessage) {
             String path = requestMessage.getPath();
-            System.err.println("[JVDBG[ normal OnReceivedRequest for path "+path+": "+ requestMessage);
+            System.err.println("[JVDBG] normal OnReceivedRequest for path "+path+": "+ requestMessage);
             if (requestMessage.getBody().isPresent()) {
                 System.err.println("[JVDBG] WebSocket Request body present " );
                 try {
@@ -315,12 +315,12 @@ System.err.println("create request to "+url);
                     System.err.println("decrypted: "+content);
                     if (content.getSyncMessage().isPresent()) {
                         SignalServiceSyncMessage sssm = content.getSyncMessage().get();
-                        System.err.println("REQ ? " + sssm.getRequest());
-                        System.err.println("CONTACTS? " + sssm.getContacts());
-                        System.err.println("GROUPS? " + sssm.getGroups());
-                        System.err.println("CONFIG? " + sssm.getConfiguration());
-                        System.err.println("STICKER? " + sssm.getStickerPackOperations());
-                                                client.processSyncMessage(sssm);
+//                        System.err.println("REQ ? " + sssm.getRequest());
+//                        System.err.println("CONTACTS? " + sssm.getContacts());
+//                        System.err.println("GROUPS? " + sssm.getGroups());
+//                        System.err.println("CONFIG? " + sssm.getConfiguration());
+//                        System.err.println("STICKER? " + sssm.getStickerPackOperations());
+                        client.processSyncMessage(sssm);
 
                         if (sssm.getStickerPackOperations().isPresent()) {
                             List<StickerPackOperationMessage> spom = sssm.getStickerPackOperations().get();

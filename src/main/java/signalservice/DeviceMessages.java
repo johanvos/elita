@@ -206,8 +206,7 @@ public final class DeviceMessages {
     protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
         internalGetFieldAccessorTable() {
       return signalservice.DeviceMessages.internal_static_signalservice_ProvisioningUuid_fieldAccessorTable
-          .ensureFieldAccessorsInitialized(
-              signalservice.DeviceMessages.ProvisioningUuid.class, signalservice.DeviceMessages.ProvisioningUuid.Builder.class);
+          .ensureFieldAccessorsInitialized(signalservice.DeviceMessages.ProvisioningUuid.class, signalservice.DeviceMessages.ProvisioningUuid.Builder.class);
     }
 
     private int bitField0_;
@@ -429,8 +428,7 @@ public final class DeviceMessages {
       protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
           internalGetFieldAccessorTable() {
         return signalservice.DeviceMessages.internal_static_signalservice_ProvisioningUuid_fieldAccessorTable
-            .ensureFieldAccessorsInitialized(
-                signalservice.DeviceMessages.ProvisioningUuid.class, signalservice.DeviceMessages.ProvisioningUuid.Builder.class);
+            .ensureFieldAccessorsInitialized(signalservice.DeviceMessages.ProvisioningUuid.class, signalservice.DeviceMessages.ProvisioningUuid.Builder.class);
       }
 
       // Construct using signalservice.DeviceMessages.ProvisioningUuid.newBuilder()
@@ -806,8 +804,7 @@ public final class DeviceMessages {
     protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
         internalGetFieldAccessorTable() {
       return signalservice.DeviceMessages.internal_static_signalservice_ProvisionEnvelope_fieldAccessorTable
-          .ensureFieldAccessorsInitialized(
-              signalservice.DeviceMessages.ProvisionEnvelope.class, signalservice.DeviceMessages.ProvisionEnvelope.Builder.class);
+          .ensureFieldAccessorsInitialized(signalservice.DeviceMessages.ProvisionEnvelope.class, signalservice.DeviceMessages.ProvisionEnvelope.Builder.class);
     }
 
     private int bitField0_;
@@ -1042,8 +1039,7 @@ public final class DeviceMessages {
       protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
           internalGetFieldAccessorTable() {
         return signalservice.DeviceMessages.internal_static_signalservice_ProvisionEnvelope_fieldAccessorTable
-            .ensureFieldAccessorsInitialized(
-                signalservice.DeviceMessages.ProvisionEnvelope.class, signalservice.DeviceMessages.ProvisionEnvelope.Builder.class);
+            .ensureFieldAccessorsInitialized(signalservice.DeviceMessages.ProvisionEnvelope.class, signalservice.DeviceMessages.ProvisionEnvelope.Builder.class);
       }
 
       // Construct using signalservice.DeviceMessages.ProvisionEnvelope.newBuilder()
@@ -1466,7 +1462,6 @@ public final class DeviceMessages {
         boolean done = false;
         while (!done) {
           int tag = input.readTag();
-            System.err.println("[DPM] tag = "+tag);
           switch (tag) {
             case 0:
               done = true;
@@ -1480,21 +1475,18 @@ public final class DeviceMessages {
               com.google.protobuf.ByteString bs = input.readBytes();
               bitField0_ |= 0x00000002;
               number_ = bs;
-                System.err.println("number received: "+bs.toStringUtf8());
               break;
             }
             case 34: {
               com.google.protobuf.ByteString bs = input.readBytes();
               bitField0_ |= 0x00000008;
               provisioningCode_ = bs;
-                System.err.println("pc received: "+bs.toStringUtf8());
               break;
             }
             case 42: {
               com.google.protobuf.ByteString bs = input.readBytes();
               bitField0_ |= 0x00000010;
               userAgent_ = bs;
-                System.err.println("useragent received: "+ bs.toStringUtf8());
               break;
             }
             case 50: {
@@ -1511,17 +1503,14 @@ public final class DeviceMessages {
               com.google.protobuf.ByteString bs = input.readBytes();
               bitField0_ |= 0x00000004;
               uuid_ = bs;
-                System.err.println("uuid received: "+bs.toStringUtf8());
               break;
             }
             case 72: {
               bitField0_ |= 0x00000080;
               provisioningVersion_ = input.readUInt32();
-                System.err.println("[PDM] version  "+provisioningVersion_);
               break;
             }
             default: {
-                System.err.println("we will parse an unknown field!");
               if (!parseUnknownField(
                   input, unknownFields, extensionRegistry, tag)) {
                 done = true;
@@ -1549,8 +1538,7 @@ public final class DeviceMessages {
     protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
         internalGetFieldAccessorTable() {
       return signalservice.DeviceMessages.internal_static_signalservice_ProvisionMessage_fieldAccessorTable
-          .ensureFieldAccessorsInitialized(
-              signalservice.DeviceMessages.ProvisionMessage.class, signalservice.DeviceMessages.ProvisionMessage.Builder.class);
+          .ensureFieldAccessorsInitialized(signalservice.DeviceMessages.ProvisionMessage.class, signalservice.DeviceMessages.ProvisionMessage.Builder.class);
     }
 
     private int bitField0_;
@@ -2068,8 +2056,7 @@ public final class DeviceMessages {
       protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
           internalGetFieldAccessorTable() {
         return signalservice.DeviceMessages.internal_static_signalservice_ProvisionMessage_fieldAccessorTable
-            .ensureFieldAccessorsInitialized(
-                signalservice.DeviceMessages.ProvisionMessage.class, signalservice.DeviceMessages.ProvisionMessage.Builder.class);
+            .ensureFieldAccessorsInitialized(signalservice.DeviceMessages.ProvisionMessage.class, signalservice.DeviceMessages.ProvisionMessage.Builder.class);
       }
 
       // Construct using signalservice.DeviceMessages.ProvisionMessage.newBuilder()

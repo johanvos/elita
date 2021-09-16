@@ -18,7 +18,6 @@ import org.whispersystems.libsignal.ecc.ECKeyPair;
 import org.whispersystems.libsignal.ecc.ECPrivateKey;
 import org.whispersystems.libsignal.ecc.ECPublicKey;
 import org.whispersystems.libsignal.kdf.HKDFv3;
-// import static org.whispersystems.signalservice.internal.push.ProvisioningProtos.*;
 import static signalservice.DeviceMessages.*;
 
 public class ProvisioningCipher {
@@ -29,7 +28,11 @@ public class ProvisioningCipher {
         ourKeyPair = Curve.generateKeyPair();
     }
 
-    ProvisionMessage decrypt(ProvisionEnvelope envelope) throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException, java.security.InvalidKeyException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException, InvalidProtocolBufferException {
+    public ECKeyPair getOurKeyPair() {
+        return this.ourKeyPair;
+    }
+    
+    public ProvisionMessage decrypt(ProvisionEnvelope envelope) throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException, java.security.InvalidKeyException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException, InvalidProtocolBufferException {
         ByteString masterEphemeral = envelope.getPublicKey();
         ECPublicKey ecPub = Curve.decodePoint(masterEphemeral.toByteArray(),0);
      

@@ -1,5 +1,6 @@
 package com.gluonhq.elita;
 
+import com.gluonhq.elita.provisioning.ProvisioningManager;
 import com.google.common.io.Files;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -14,6 +15,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.beans.InvalidationListener;
+import javafx.beans.Observable;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -28,6 +31,8 @@ import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.jetty.client.api.ContentResponse;
 import org.eclipse.jetty.client.api.Request;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
+import org.whispersystems.libsignal.logging.Log;
+import org.whispersystems.libsignal.logging.SignalProtocolLoggerProvider;
 import org.whispersystems.signalservice.api.messages.SignalServiceAttachmentStream;
 import org.whispersystems.signalservice.api.messages.multidevice.DeviceContact;
 import org.whispersystems.signalservice.api.messages.multidevice.DeviceContactsInputStream;
@@ -43,12 +48,15 @@ import signalservice.DeviceMessages.ProvisionMessage;
  */
 public class Elita extends Application {
 
-    StackPane root = new StackPane();
+    final StackPane root = new StackPane();
     private Client client;
+    private ProvisioningManager pm;
     private ProvisionMessage provisionResult;
 
     @Override
     public void start(Stage primaryStage) throws Exception {
+        SignalLogger logger = new SignalLogger();
+        SignalProtocolLoggerProvider.setProvider(logger);
         Scene scene = new Scene(root, 350, 350);
         primaryStage.setTitle("Hello World!");
         primaryStage.setScene(scene);
@@ -61,8 +69,8 @@ public class Elita extends Application {
             @Override
             public void run() {
                 try {
-                    client = new Client(Elita.this);
-                    client.startup();
+                    pm = new ProvisioningManager(Elita.this);
+                    pm.start();
                 } catch (Exception e) {
                     e.printStackTrace();
                     System.exit(0);
@@ -78,6 +86,7 @@ public class Elita extends Application {
     }
 
     public void askLocalName() {
+        System.err.println("asklocalname");
         Label l = new Label("Enter the name you want to use for this device:");
         TextField tf = new TextField();
         Button btn = new Button("confirm");
@@ -89,6 +98,9 @@ public class Elita extends Application {
         btn.setOnAction(b -> {
             String name = tf.getText();
             try {
+                pm.stop();
+                client = new Client(Elita.this);
+                client.startup();
                 client.createAccount(provisionResult, name);
             } catch (Exception e) {
                 e.printStackTrace();
@@ -97,6 +109,7 @@ public class Elita extends Application {
     }
 
     public void setProvisioningURL(String url) {
+        System.err.println("[Elita] setProvisioningURL to "+url);
         Image image = QRGenerator.getImage(url);
         ImageView iv = new ImageView(image);
         Platform.runLater(() -> root.getChildren().add(iv));

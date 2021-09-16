@@ -19,7 +19,9 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.CopyOption;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -143,7 +145,7 @@ public class Client implements WebSocketInterface.Listener {
         this.webApi.getConfig();
         this.webApi.onOffline();
         this.webApi.onOnline();
-        this.webApi.provision();
+    //    this.webApi.provision();
     }
 
     public void createAccount(ProvisionMessage pm, String deviceName) throws JsonProcessingException, IOException {
@@ -479,7 +481,7 @@ public class Client implements WebSocketInterface.Listener {
             try {
                 Files.write(output.toPath(), bytes);
                 InputStream is = AttachmentCipherInputStream.createForAttachment(output.getAbsoluteFile(), pointer.getSize().or(0), pointer.getKey(), pointer.getDigest().get());
-                Files.copy(is, new File("/tmp/myin").toPath());
+                Files.copy(is, new File("/tmp/myin").toPath(), StandardCopyOption.REPLACE_EXISTING);
                 readContacts();
             } catch (IOException ex) {
                 Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);

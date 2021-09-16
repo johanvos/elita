@@ -57,10 +57,10 @@ public class WebAPI {
     public String getMyNumber() {
         return this.number;
     }
-    
-    public void provision() {
-        this.socketManager.createProvisioning();
-    }
+//    
+//    public void provision() {
+//        this.socketManager.createProvisioning();
+//    }
 
     public SocketManager connect (String username, String password) {
         System.err.println("WebAPI connect called with url "+url);
