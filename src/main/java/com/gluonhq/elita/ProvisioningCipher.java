@@ -1,5 +1,5 @@
 package com.gluonhq.elita;
-import com.gluonhq.elita.crypto.KeyUtil;
+// import com.gluonhq.elita.crypto.KeyUtil;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import java.security.InvalidAlgorithmParameterException;
@@ -12,6 +12,8 @@ import javax.crypto.Mac;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import org.whispersystems.libsignal.IdentityKey;
+import org.whispersystems.libsignal.IdentityKeyPair;
 import org.whispersystems.libsignal.InvalidKeyException;
 import org.whispersystems.libsignal.ecc.Curve;
 import org.whispersystems.libsignal.ecc.ECKeyPair;
@@ -74,7 +76,10 @@ public class ProvisioningCipher {
      
         ECKeyPair keyPair = new ECKeyPair(publicKey, privateKey);
         System.err.println("identitykp = "+ keyPair);
-        KeyUtil.setIdentityKeyPair(keyPair);
+        IdentityKey identityKey = new IdentityKey(publicKey);
+        IdentityKeyPair ikp = new IdentityKeyPair(identityKey, privateKey);
+        Elita.getSignalProtocolStore().setIdentityKeyPair(ikp);
+      //  KeyUtil.setIdentityKeyPair(keyPair);
         return pm;
     }
     

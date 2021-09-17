@@ -3,6 +3,7 @@ package com.gluonhq.elita;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gluonhq.elita.crypto.KeyUtil;
+// import com.gluonhq.elita.crypto.KeyUtil;
 import com.gluonhq.elita.storage.User;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -94,7 +95,7 @@ import org.whispersystems.signalservice.internal.util.Util;
 import signalservice.DeviceMessages.*;
 
 @WebSocket(maxTextMessageSize = 64 * 1024)
-public class Client implements WebSocketInterface.Listener {
+public class Client { // implements WebSocketInterface.Listener {
     static final String SIGNAL_USER_AGENT = "Signal-Desktop/5.14.0 Linux";
 
     static final String SERVER_NAME = "https://textsecure-service.whispersystems.org";
@@ -317,81 +318,8 @@ public class Client implements WebSocketInterface.Listener {
         webApi.getGroupCredentials(startDate, endDate);
     }
 
-    public void provisioningMessageReceived(WebSocketRequestMessage requestMessage) {
-        String path = requestMessage.getPath();
-        System.out.println("[JVDBG] GOT request from path " + path);
-        java.util.Optional<byte[]> body = requestMessage.getBody();
-        byte[] data = body.get();
-        if ("/v1/address".equals(path)) {
-            String uuid = "";
-            try {
-                ProvisioningUuid puuid = ProvisioningUuid.parseFrom(data);
-                uuid = puuid.getUuid();
-            } catch (InvalidProtocolBufferException ex) {
-                ex.printStackTrace();
-            }
-            System.err.println("MSG = " + uuid);
-            String ourPubKey = Base64.getEncoder().encodeToString(this.provisioningCipher.ourKeyPair.getPublicKey().serialize());
-            ourPubKey = URLEncoder.encode(ourPubKey, StandardCharsets.UTF_8);
-            String url = "tsdevice:/?uuid=" + uuid + "&pub_key=" + ourPubKey;
-            System.err.println("URL = " + url);
-            elita.setProvisioningURL(url);
-        } else if ("/v1/message".equals(path)) {
-            try {
-                ProvisionEnvelope envelope = ProvisionEnvelope.parseFrom(data);
-                ByteString publicKey = envelope.getPublicKey();
-                ProvisionMessage pm = provisioningCipher.decrypt(envelope);
-                System.err.println("Got pm: " + pm);
-                elita.gotProvisionMessage(pm);
-                //  const deviceName = await confirmNumber(provisionMessage.number);
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
-        }
-    }
-
-    @Override
-    public void onReceivedRequest(WebSocketRequestMessage requestMessage) {
-        provisioningMessageReceived(requestMessage);
-
-        try {
-            webSocket.sendResponse(requestMessage.getRequestId(), 200, "OK", "world!".getBytes());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    @Override
-    public void onReceivedResponse(WebSocketResponseMessage responseMessage) {
-        System.err.println("[JVDBG] Got response: " + responseMessage.getStatus());
-
-        if (responseMessage.getBody().isPresent()) {
-            System.err.println("[JVDBG] Got response body: " + new String(responseMessage.getBody().get()));
-        }
-    }
-
-    @Override
-    public void onClosed() {
-        System.err.println("[Client] WebSocket onClosed() called");
-    }
-
-    @Override
-    public void onConnected() {
-        try {
-            System.err.println("[Client] WebSocket onConnected called");
-            Thread.dumpStack();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    @Override
-    public void attached(WebSocketInterface parent) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-    }
-
     public void generateAndRegisterKeys() throws IOException {
-        this.identityKeypair = KeyUtil.getIdentityKeyPair();
+        this.identityKeypair = Elita.getSignalProtocolStore().getIdentityKeyPair();
         SignedPreKeyRecord signedPreKey = KeyUtil.generateSignedPreKey(identityKeypair, true);
         List<PreKeyRecord> records = KeyUtil.generatePreKeys(100);
         registerPreKeys(identityKeypair.getPublicKey(), signedPreKey, records);

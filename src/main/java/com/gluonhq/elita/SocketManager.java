@@ -129,20 +129,10 @@ public class SocketManager {
         }
         return authenticatedClient;
     }
-    
-    public WebSocketInterface createProvisioning() {
-        WebSocketInterface.Listener wsl = new ProvisioningListener();
-        WebSocketInterface answer = connectResource("provisioning/", wsl, false);
-        return answer;
-    }
 
     private WebSocketInterface connectResource(String path, boolean auth) {
         return this.connectResource(path, new WebSocketListener(), auth);
     } 
-    
-//    private WebSocketInterface connectResource(String path, WebSocketInterface.Listener wsl) {
-//        return connectResource(path, wsl, false);
-//    }
     
     private WebSocketInterface connectResource(String path, WebSocketInterface.Listener wsl, boolean auth) {
         System.err.println("start setting logger");
@@ -338,10 +328,8 @@ System.err.println("create request to "+url);
                     Logger.getLogger(SocketManager.class.getName()).log(Level.SEVERE, null, ex);
                 }
             }           
-// client.provisioningMessageReceived(requestMessage);
 
         }
-        
         
         SignalServiceContent mydecrypt(SignalServiceEnvelope sse) throws Exception {
             SignalServiceCipher cipher = new SignalServiceCipher(client.getSignalServiceAddress(),
@@ -370,7 +358,6 @@ System.err.println("create request to "+url);
             if (responseMessage.getBody().isPresent()) {
                 System.err.println("[JVDBG] Got response body: " + new String(responseMessage.getBody().get()));
             }
-
         }
 
         @Override
@@ -387,53 +374,6 @@ System.err.println("create request to "+url);
             }
         }
 
-    }
-
-    class ProvisioningListener implements WebSocketInterface.Listener {
-
-        private WebSocketInterface webSocket;
-
-        ProvisioningListener() {
-        }
-        
-        @Override public void attached(WebSocketInterface webSocket) {
-            this.webSocket = webSocket;
-        }
-
-        @Override
-        public void onReceivedRequest(WebSocketRequestMessage requestMessage) {
-            System.err.println("prov oRR");
-            client.provisioningMessageReceived(requestMessage);
-
-            try {
-                webSocket.sendResponse(requestMessage.getRequestId(), 200, "OK", "world!".getBytes());
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-
-        @Override
-        public void onReceivedResponse(WebSocketResponseMessage responseMessage) {
-            System.err.println("[JVDBG] provGot response: " + responseMessage.getStatus());
-
-            if (responseMessage.getBody().isPresent()) {
-                System.err.println("[JVDBG] provGot response body: " + new String(responseMessage.getBody().get()));
-            }
-        }
-
-        @Override
-        public void onClosed() {
-            System.err.println("[Client] provWebSocket PL onClosed() called");
-        }
-
-        @Override
-        public void onConnected() {
-            try {
-                System.err.println("[Client] provWebSocket onConnected called");
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
     }
 
 }

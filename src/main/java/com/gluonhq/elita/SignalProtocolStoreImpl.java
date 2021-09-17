@@ -5,14 +5,13 @@
  */
 package com.gluonhq.elita;
 
+import java.util.HashMap;
 import java.util.List;
-import java.util.UUID;
+import java.util.Map;
 import org.whispersystems.libsignal.IdentityKey;
 import org.whispersystems.libsignal.IdentityKeyPair;
 import org.whispersystems.libsignal.InvalidKeyIdException;
-import org.whispersystems.libsignal.NoSessionException;
 import org.whispersystems.libsignal.SignalProtocolAddress;
-import org.whispersystems.libsignal.groups.state.SenderKeyRecord;
 import org.whispersystems.libsignal.state.PreKeyRecord;
 import org.whispersystems.libsignal.state.SessionRecord;
 import org.whispersystems.libsignal.state.SignalProtocolStore;
@@ -24,9 +23,21 @@ import org.whispersystems.libsignal.state.SignedPreKeyRecord;
  */
 public class SignalProtocolStoreImpl implements SignalProtocolStore {
 
+    private IdentityKeyPair identityKeyPair;
+    Map<Integer, PreKeyRecord> map = new HashMap<>();
+    Map<Integer, SignedPreKeyRecord> signedMap = new HashMap<>();
+
+    public SignalProtocolStoreImpl() {
+        System.err.println("[SPSI] <init>");
+    }
+    
+    public void setIdentityKeyPair(IdentityKeyPair ikp) {
+        this.identityKeyPair = ikp;
+    }
+    
     @Override
     public IdentityKeyPair getIdentityKeyPair() {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return this.identityKeyPair;
     }
 
     @Override
@@ -49,26 +60,51 @@ public class SignalProtocolStoreImpl implements SignalProtocolStore {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
-    @Override
+      @Override
     public PreKeyRecord loadPreKey(int i) throws InvalidKeyIdException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return map.get(i);
     }
 
     @Override
     public void storePreKey(int i, PreKeyRecord pkr) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        map.put(i, pkr);
     }
 
     @Override
     public boolean containsPreKey(int i) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return map.containsKey(i);
     }
 
     @Override
     public void removePreKey(int i) {
+        map.remove(i);
+    }
+
+    @Override
+    public SignedPreKeyRecord loadSignedPreKey(int i) throws InvalidKeyIdException {
+        return signedMap.get(i);
+    }
+
+    @Override
+    public List<SignedPreKeyRecord> loadSignedPreKeys() {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
+    @Override
+    public void storeSignedPreKey(int i, SignedPreKeyRecord spkr) {
+        signedMap.put(i, spkr);
+    }
+
+    @Override
+    public boolean containsSignedPreKey(int i) {
+        return signedMap.containsKey(i);
+    }
+
+    @Override
+    public void removeSignedPreKey(int i) {
+        signedMap.remove(i);
+    }
+    
     @Override
     public SessionRecord loadSession(SignalProtocolAddress spa) {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
@@ -99,29 +135,5 @@ public class SignalProtocolStoreImpl implements SignalProtocolStore {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
-    @Override
-    public SignedPreKeyRecord loadSignedPreKey(int i) throws InvalidKeyIdException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-    }
-
-    @Override
-    public List<SignedPreKeyRecord> loadSignedPreKeys() {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-    }
-
-    @Override
-    public void storeSignedPreKey(int i, SignedPreKeyRecord spkr) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-    }
-
-    @Override
-    public boolean containsSignedPreKey(int i) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-    }
-
-    @Override
-    public void removeSignedPreKey(int i) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-    }
 
 }

@@ -14,6 +14,8 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.whispersystems.libsignal.util.guava.Optional;
 import org.whispersystems.signalservice.api.push.TrustStore;
 import org.whispersystems.signalservice.api.util.SleepTimer;
@@ -68,8 +70,8 @@ public class ProvisioningManager {
     public void stop() {
         this.listen = false;
         System.err.println("[PM] we're asked to disconnect the websocket");
-        webSocket.disconnect();
-        System.err.println("[PM] tried to disconnect the websocket");
+        webSocket.disconnect();      
+        System.err.println("[PM] stopped");
     }
     
     private void handleRequest(WebSocketProtos.WebSocketRequestMessage request) {

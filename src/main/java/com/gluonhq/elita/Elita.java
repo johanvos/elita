@@ -33,6 +33,7 @@ import org.eclipse.jetty.client.api.Request;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.whispersystems.libsignal.logging.Log;
 import org.whispersystems.libsignal.logging.SignalProtocolLoggerProvider;
+import org.whispersystems.libsignal.state.SignalProtocolStore;
 import org.whispersystems.signalservice.api.messages.SignalServiceAttachmentStream;
 import org.whispersystems.signalservice.api.messages.multidevice.DeviceContact;
 import org.whispersystems.signalservice.api.messages.multidevice.DeviceContactsInputStream;
@@ -52,6 +53,7 @@ public class Elita extends Application {
     private Client client;
     private ProvisioningManager pm;
     private ProvisionMessage provisionResult;
+    private static final SignalProtocolStoreImpl signalProtocolStore = new SignalProtocolStoreImpl();
 
     @Override
     public void start(Stage primaryStage) throws Exception {
@@ -64,6 +66,9 @@ public class Elita extends Application {
         startClientFlow();
     }
 
+    public static SignalProtocolStoreImpl getSignalProtocolStore() {
+        return signalProtocolStore;
+    }
     private void startClientFlow() {
         Thread t = new Thread() {
             @Override
