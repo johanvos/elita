@@ -6,21 +6,13 @@ import com.gluonhq.elita.crypto.KeyUtil;
 // import com.gluonhq.elita.crypto.KeyUtil;
 import com.gluonhq.elita.storage.User;
 import com.google.protobuf.ByteString;
-import com.google.protobuf.InvalidProtocolBufferException;
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import org.eclipse.jetty.websocket.api.annotations.WebSocket;
-import org.whispersystems.websocket.messages.WebSocketRequestMessage;
-import org.whispersystems.websocket.messages.WebSocketResponseMessage;
-import org.whispersystems.libsignal.util.guava.Optional;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.CopyOption;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.security.SecureRandom;
@@ -37,7 +29,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.jetty.client.api.ContentResponse;
-import org.thoughtcrime.securesms.crypto.ReentrantSessionLock;
 import org.whispersystems.libsignal.IdentityKey;
 import org.whispersystems.libsignal.IdentityKeyPair;
 import org.whispersystems.libsignal.InvalidKeyException;
@@ -47,17 +38,11 @@ import org.whispersystems.libsignal.SignalProtocolAddress;
 import org.whispersystems.libsignal.ecc.ECPublicKey;
 import org.whispersystems.libsignal.state.PreKeyBundle;
 import org.whispersystems.libsignal.state.PreKeyRecord;
-import org.whispersystems.libsignal.state.SessionRecord;
-import org.whispersystems.libsignal.state.SessionState;
 import org.whispersystems.libsignal.state.SignalProtocolStore;
 import org.whispersystems.libsignal.state.SignedPreKeyRecord;
-import org.whispersystems.libsignal.state.impl.InMemorySignalProtocolStore;
-import org.whispersystems.signalservice.api.SignalServiceMessagePipe;
 //import org.whispersystems.signalservice.api.SignalServiceDataStore;
 import org.whispersystems.signalservice.api.SignalServiceMessageSender;
-import org.whispersystems.signalservice.api.SignalServiceMessageSender.EventListener;
 import org.whispersystems.signalservice.api.crypto.AttachmentCipherInputStream;
-import org.whispersystems.signalservice.api.crypto.UnidentifiedAccess;
 //import org.whispersystems.signalservice.api.crypto.ContentHint;
 //import org.whispersystems.signalservice.api.crypto.EnvelopeContent;
 import org.whispersystems.signalservice.api.crypto.UntrustedIdentityException;
@@ -71,12 +56,8 @@ import org.whispersystems.signalservice.api.messages.multidevice.RequestMessage;
 import org.whispersystems.signalservice.api.messages.multidevice.SignalServiceSyncMessage;
 import org.whispersystems.signalservice.api.push.SignalServiceAddress;
 import org.whispersystems.signalservice.api.push.SignedPreKeyEntity;
-import org.whispersystems.signalservice.api.push.TrustStore;
 import org.whispersystems.signalservice.api.util.CredentialsProvider;
 import org.whispersystems.signalservice.internal.configuration.SignalCdnUrl;
-import org.whispersystems.signalservice.internal.configuration.SignalContactDiscoveryUrl;
-import org.whispersystems.signalservice.internal.configuration.SignalServiceConfiguration;
-import org.whispersystems.signalservice.internal.configuration.SignalServiceUrl;
 import org.whispersystems.signalservice.internal.push.OutgoingPushMessageList;
 import org.whispersystems.signalservice.internal.push.PreKeyEntity;
 import org.whispersystems.signalservice.internal.push.PreKeyResponse;
@@ -85,7 +66,6 @@ import org.whispersystems.signalservice.internal.push.PreKeyState;
 import org.whispersystems.signalservice.internal.push.RemoteConfigResponse;
 import org.whispersystems.signalservice.internal.push.RemoteConfigResponse.Config;
 import org.whispersystems.signalservice.internal.push.SignalServiceProtos;
-import org.whispersystems.signalservice.internal.push.SignalServiceProtos.ContactDetails;
 import org.whispersystems.signalservice.internal.push.SignalServiceProtos.SyncMessage.Request;
 import org.whispersystems.signalservice.internal.util.JsonUtil;
 import org.whispersystems.signalservice.internal.util.StaticCredentialsProvider;
@@ -116,11 +96,14 @@ public class Client { // implements WebSocketInterface.Listener {
     private RemoteConfigResponse remoteConfig;
     private IdentityKeyPair identityKeypair;
     private int regid;
-    SignalProtocolStore store;
+    final SignalProtocolStoreImpl store = Elita.getSignalProtocolStore();
     private SignalProtocolAddress me;
     private SignalServiceAddress signalServiceAddress;
 
+    LockImpl lock;
+    
     public Client(Elita elita) {
+        this.lock = new LockImpl();
         this.elita = elita;
         this.webApi = new WebAPI(this, SERVER_NAME);
         this.webSocket = new WebSocketInterface();
@@ -167,7 +150,10 @@ public class Client { // implements WebSocketInterface.Listener {
         this.signalServiceAddress = new SignalServiceAddress(uuid, pm.getNumber());
 
         generateAndRegisterKeys();
-        store = new InMemorySignalProtocolStore(identityKeypair, regid);
+        store.setRegistrationId(regid);
+      //  store = new SignalProtocolStoreImpl(identityKeypair, regid);
+      //  Elita.setStore(store);
+ //       store = new InMemorySignalProtocolStore(identityKeypair, regid);
         finishRegistration();
     }
 
@@ -272,7 +258,8 @@ public class Client { // implements WebSocketInterface.Listener {
         Request request = Request.newBuilder().setType(Request.Type.KEYS).build();
         RequestMessage requestMessage = new RequestMessage(request);
         SignalServiceSyncMessage message = SignalServiceSyncMessage.forRequest(requestMessage);
-        SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsProvider, store);
+        SignalServiceMessageSender sender = 
+                new SignalServiceMessageSender(credentialsProvider, store, lock);
       //  sender.sendMessage(message, org.whispersystems.libsignal.util.guava.Optional.absent());
 
         OutgoingPushMessageList messages = sender.createMessageBundle(message, org.whispersystems.libsignal.util.guava.Optional.absent());
@@ -288,7 +275,7 @@ public class Client { // implements WebSocketInterface.Listener {
         Request request = Request.newBuilder().setType(Request.Type.CONTACTS).build();
         RequestMessage requestMessage = new RequestMessage(request);
         SignalServiceSyncMessage message = SignalServiceSyncMessage.forRequest(requestMessage);
-        SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsProvider, store);
+        SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsProvider, store, lock);
 
         OutgoingPushMessageList messages = sender.createMessageBundle(message, org.whispersystems.libsignal.util.guava.Optional.absent());
         String destination = messages.getDestination();
@@ -304,7 +291,7 @@ public class Client { // implements WebSocketInterface.Listener {
 
         RequestMessage requestMessage = new RequestMessage(request);
         SignalServiceSyncMessage message = SignalServiceSyncMessage.forRequest(requestMessage);
-        SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsProvider, store);
+        SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsProvider, store, lock);
 
         OutgoingPushMessageList messages = sender.createMessageBundle(message, org.whispersystems.libsignal.util.guava.Optional.absent());
         String destination = messages.getDestination();
@@ -364,7 +351,7 @@ public class Client { // implements WebSocketInterface.Listener {
     private void InMemorySignalProtocolStore(IdentityKeyPair identityKeypair, int regid) {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
-
+/*
     private void differentsendRequestKeySyncMessage() throws IOException, UntrustedIdentityException, InvalidKeyException {
         String myUuid = webApi.getMyUuid();
         String myNumber = webApi.getMyNumber();
@@ -388,7 +375,7 @@ public class Client { // implements WebSocketInterface.Listener {
         ssmp,ssmp2,ssmp3);
         sender.sendMessage(message, org.whispersystems.libsignal.util.guava.Optional.absent());
    }
-
+*/
     private static Map<Integer, SignalCdnUrl[]> makeSignalCdnUrlMapFor(SignalCdnUrl[] cdn0Urls, SignalCdnUrl[] cdn2Urls) {
         Map<Integer, SignalCdnUrl[]> result = new HashMap<>();
         result.put(0, cdn0Urls);

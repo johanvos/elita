@@ -298,7 +298,7 @@ System.err.println("create request to "+url);
             if (requestMessage.getBody().isPresent()) {
                 System.err.println("[JVDBG] WebSocket Request body present " );
                 try {
-                    SignalServiceEnvelope sse = new SignalServiceEnvelope(requestMessage.getBody().get(),"foo", false);
+                    SignalServiceEnvelope sse = new SignalServiceEnvelope(requestMessage.getBody().get(),System.currentTimeMillis());
                     System.err.println("[JVDBG] got sse: source = "+sse.getSourceIdentifier()+ 
                             ", dest = "+sse.getUuid()+", type = "+sse.getType());
                     SignalServiceContent content = mydecrypt(sse);
@@ -334,6 +334,7 @@ System.err.println("create request to "+url);
         SignalServiceContent mydecrypt(SignalServiceEnvelope sse) throws Exception {
             SignalServiceCipher cipher = new SignalServiceCipher(client.getSignalServiceAddress(),
                              client.getSignalServiceDataStore(),
+                    new LockImpl(),
                              getCertificateValidator());
             SignalServiceContent content = cipher.decrypt(sse);
             return content;

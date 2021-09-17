@@ -14,8 +14,8 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.Base64;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.LinkedList;
+import okhttp3.Response;
 import org.whispersystems.libsignal.util.guava.Optional;
 import org.whispersystems.signalservice.api.push.TrustStore;
 import org.whispersystems.signalservice.api.util.SleepTimer;
@@ -51,11 +51,13 @@ public class ProvisioningManager {
         ConnectivityListener connectivityListener = new ProvisioningConnectivityListener();
         SleepTimer sleepTimer = m -> Thread.sleep(m);
         webSocket = new WebSocketConnection(dest, "provisioning/", trustStore,
-                Optional.absent(), USER_AGENT, connectivityListener, sleepTimer);
+                Optional.absent(), USER_AGENT, connectivityListener, sleepTimer, 
+                new LinkedList(), Optional.absent(), Optional.absent());
         webSocket.connect();
         this.listen = true;
         try {
             while (listen) {
+                System.err.println("waiting for reqest... ");
                 WebSocketProtos.WebSocketRequestMessage request = webSocket.readRequest(60000);
                 System.err.println("got readrequest: "+request);
                 handleRequest(request);
@@ -107,11 +109,22 @@ public class ProvisioningManager {
         }
     }
 
-    public void createAccount() {
-        webSocket.disconnect();
-        String pwd = createPassword();
-        int regId = new SecureRandom().nextInt(16384) & 0x3fff;
-    }
+//    public void createAccount(String deviceName) {
+//        String pwd = createPassword();
+//        int regId = new SecureRandom().nextInt(16384) & 0x3fff;
+//        
+//        webApi.confirmCode(pm.getNumber(), pm.getProvisioningCode(), password,
+//                regid, deviceName, pm.getUuid());
+//        System.err.println("got code");
+//        UUID uuid = UUID.fromString(pm.getUuid());
+//        this.credentialsProvider = new StaticCredentialsProvider(uuid,
+//                pm.getNumber(), password, "signalingkey");
+//        this.signalServiceAddress = new SignalServiceAddress(uuid, pm.getNumber());
+//
+//        generateAndRegisterKeys();
+//        store = new InMemorySignalProtocolStore(identityKeypair, regid);
+//        finishRegistration();
+//    }
     
     private String createPassword () {
         byte[] b = new byte[16];
@@ -142,6 +155,11 @@ public class ProvisioningManager {
 
         @Override
         public void onAuthenticationFailure() {
+            throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        }
+
+        @Override
+        public boolean onGenericFailure(Response response, Throwable throwable) {
             throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
         }
         

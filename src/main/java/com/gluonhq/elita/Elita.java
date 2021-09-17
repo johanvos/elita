@@ -53,7 +53,7 @@ public class Elita extends Application {
     private Client client;
     private ProvisioningManager pm;
     private ProvisionMessage provisionResult;
-    private static final SignalProtocolStoreImpl signalProtocolStore = new SignalProtocolStoreImpl();
+    private static SignalProtocolStoreImpl signalProtocolStore = new SignalProtocolStoreImpl();
 
     @Override
     public void start(Stage primaryStage) throws Exception {
@@ -69,6 +69,7 @@ public class Elita extends Application {
     public static SignalProtocolStoreImpl getSignalProtocolStore() {
         return signalProtocolStore;
     }
+    
     private void startClientFlow() {
         Thread t = new Thread() {
             @Override
@@ -85,6 +86,7 @@ public class Elita extends Application {
         t.start();
     }
 
+    // callback from ProvisioningManager
     public void gotProvisionMessage(ProvisionMessage provisionResult) {
         this.provisionResult = provisionResult;
         askLocalName();
@@ -103,6 +105,7 @@ public class Elita extends Application {
         btn.setOnAction(b -> {
             String name = tf.getText();
             try {
+            //    pm.createAccount(name);
                 pm.stop();
                 client = new Client(Elita.this);
                 client.startup();
