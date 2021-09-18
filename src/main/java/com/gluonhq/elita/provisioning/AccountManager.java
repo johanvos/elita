@@ -11,4 +11,7 @@ package com.gluonhq.elita.provisioning;
  */
 public class AccountManager {
     
+    public AccountManager() {
+        
+    }
 }

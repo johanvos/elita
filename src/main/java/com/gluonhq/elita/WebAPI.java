@@ -46,6 +46,9 @@ public class WebAPI {
         System.err.println("WebAPI constructor called");
     }
     
+    public int getDeviceId() {
+        return this.deviceId;
+    }
     public void initialize() {
         System.err.println("Initialize WebAPI");
     }

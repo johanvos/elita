@@ -103,13 +103,23 @@ public class Elita extends Application {
             root.getChildren().add(vbox);
         });
         btn.setOnAction(b -> {
-            String name = tf.getText();
+            final String name = tf.getText();
             try {
             //    pm.createAccount(name);
                 pm.stop();
                 client = new Client(Elita.this);
                 client.startup();
-                client.createAccount(provisionResult, name);
+                Thread t = new Thread() {
+                    @Override public void run() {
+                        try {
+                            client.createAccount(provisionResult, name);
+                        } catch (IOException ex) {
+                            Logger.getLogger(Elita.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+
+                    }
+                }; 
+                t.start();
             } catch (Exception e) {
                 e.printStackTrace();
             }

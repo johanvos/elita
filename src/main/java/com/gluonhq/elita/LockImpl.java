@@ -16,7 +16,7 @@ public class LockImpl implements SignalSessionLock {
     static private Lock singleton = new Lock() {
         @Override
         public void close() {
-            System.err.println("LOCK CLOSED");
+          //  System.err.println("LOCK CLOSED");
         }
     };
     @Override

@@ -2,6 +2,7 @@ package com.gluonhq.elita;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import static com.gluonhq.elita.SocketManager.getCertificateValidator;
 import com.gluonhq.elita.crypto.KeyUtil;
 // import com.gluonhq.elita.crypto.KeyUtil;
 import com.gluonhq.elita.storage.User;
@@ -25,14 +26,22 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import okhttp3.Interceptor;
+import okhttp3.Response;
 import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.jetty.client.api.ContentResponse;
 import org.whispersystems.libsignal.IdentityKey;
 import org.whispersystems.libsignal.IdentityKeyPair;
 import org.whispersystems.libsignal.InvalidKeyException;
 import org.whispersystems.libsignal.InvalidMessageException;
+import org.whispersystems.libsignal.InvalidVersionException;
 import org.whispersystems.libsignal.SessionBuilder;
 import org.whispersystems.libsignal.SignalProtocolAddress;
 import org.whispersystems.libsignal.ecc.ECPublicKey;
@@ -40,15 +49,22 @@ import org.whispersystems.libsignal.state.PreKeyBundle;
 import org.whispersystems.libsignal.state.PreKeyRecord;
 import org.whispersystems.libsignal.state.SignalProtocolStore;
 import org.whispersystems.libsignal.state.SignedPreKeyRecord;
+import org.whispersystems.libsignal.util.guava.Optional;
+import org.whispersystems.signalservice.api.SignalServiceMessagePipe;
+import org.whispersystems.signalservice.api.SignalServiceMessageReceiver;
 //import org.whispersystems.signalservice.api.SignalServiceDataStore;
 import org.whispersystems.signalservice.api.SignalServiceMessageSender;
+import org.whispersystems.signalservice.api.SignalServiceMessageSender.EventListener;
 import org.whispersystems.signalservice.api.crypto.AttachmentCipherInputStream;
+import org.whispersystems.signalservice.api.crypto.SignalServiceCipher;
 //import org.whispersystems.signalservice.api.crypto.ContentHint;
 //import org.whispersystems.signalservice.api.crypto.EnvelopeContent;
 import org.whispersystems.signalservice.api.crypto.UntrustedIdentityException;
 import org.whispersystems.signalservice.api.messages.SignalServiceAttachment;
 import org.whispersystems.signalservice.api.messages.SignalServiceAttachmentPointer;
 import org.whispersystems.signalservice.api.messages.SignalServiceAttachmentStream;
+import org.whispersystems.signalservice.api.messages.SignalServiceContent;
+import org.whispersystems.signalservice.api.messages.SignalServiceEnvelope;
 import org.whispersystems.signalservice.api.messages.multidevice.ContactsMessage;
 import org.whispersystems.signalservice.api.messages.multidevice.DeviceContact;
 import org.whispersystems.signalservice.api.messages.multidevice.DeviceContactsInputStream;
@@ -56,8 +72,16 @@ import org.whispersystems.signalservice.api.messages.multidevice.RequestMessage;
 import org.whispersystems.signalservice.api.messages.multidevice.SignalServiceSyncMessage;
 import org.whispersystems.signalservice.api.push.SignalServiceAddress;
 import org.whispersystems.signalservice.api.push.SignedPreKeyEntity;
+import org.whispersystems.signalservice.api.push.TrustStore;
 import org.whispersystems.signalservice.api.util.CredentialsProvider;
+import org.whispersystems.signalservice.api.util.SleepTimer;
+import org.whispersystems.signalservice.api.websocket.ConnectivityListener;
 import org.whispersystems.signalservice.internal.configuration.SignalCdnUrl;
+import org.whispersystems.signalservice.internal.configuration.SignalContactDiscoveryUrl;
+import org.whispersystems.signalservice.internal.configuration.SignalKeyBackupServiceUrl;
+import org.whispersystems.signalservice.internal.configuration.SignalServiceConfiguration;
+import org.whispersystems.signalservice.internal.configuration.SignalServiceUrl;
+import org.whispersystems.signalservice.internal.configuration.SignalStorageUrl;
 import org.whispersystems.signalservice.internal.push.OutgoingPushMessageList;
 import org.whispersystems.signalservice.internal.push.PreKeyEntity;
 import org.whispersystems.signalservice.internal.push.PreKeyResponse;
@@ -76,13 +100,19 @@ import signalservice.DeviceMessages.*;
 
 @WebSocket(maxTextMessageSize = 64 * 1024)
 public class Client { // implements WebSocketInterface.Listener {
-    static final String SIGNAL_USER_AGENT = "Signal-Desktop/5.14.0 Linux";
 
+    static final String SIGNAL_USER_AGENT = "Signal-Desktop/5.14.0 Linux";
+static final String SIGNAL_KEY_BACKUP_URL = "https://api.backup.signal.org";
+static final String SIGNAL_STORAGE_URL = "https://storage.signal.org";
+static final String SIGNAL_SERVICE_URL = "https://textsecure-service.whispersystems.org";
     static final String SERVER_NAME = "https://textsecure-service.whispersystems.org";
     static final String PREKEY_PATH = "/v2/keys/%s";
     private static final String MESSAGE_PATH = "/v1/messages/%s";
     private static final Map<String, String> NO_HEADERS = Collections.emptyMap();
+   final TrustStore trustStore = new TrustStoreImpl();
 
+   final SignalServiceConfiguration signalServiceConfiguration;
+   
     final WebSocketInterface webSocket;
     private final ProvisioningCipher provisioningCipher;
     private final SecureRandom sr;
@@ -101,7 +131,9 @@ public class Client { // implements WebSocketInterface.Listener {
     private SignalServiceAddress signalServiceAddress;
 
     LockImpl lock;
-    
+    private SignalServiceMessageReceiver receiver;
+    private SignalServiceMessageSender sender;
+
     public Client(Elita elita) {
         this.lock = new LockImpl();
         this.elita = elita;
@@ -109,13 +141,14 @@ public class Client { // implements WebSocketInterface.Listener {
         this.webSocket = new WebSocketInterface();
         this.provisioningCipher = new ProvisioningCipher();
         this.sr = new SecureRandom();
+        this.signalServiceConfiguration = createConfiguration();
     }
 
     // we return the impl here, since we need the method to store device-identifier
     public SignalProtocolStore getSignalServiceDataStore() {
         return store;
     }
-    
+
     public SignalServiceAddress getSignalServiceAddress() {
         return this.signalServiceAddress;
     }
@@ -129,7 +162,7 @@ public class Client { // implements WebSocketInterface.Listener {
         this.webApi.getConfig();
         this.webApi.onOffline();
         this.webApi.onOnline();
-    //    this.webApi.provision();
+        //    this.webApi.provision();
     }
 
     public void createAccount(ProvisionMessage pm, String deviceName) throws JsonProcessingException, IOException {
@@ -146,14 +179,14 @@ public class Client { // implements WebSocketInterface.Listener {
         System.err.println("got code");
         UUID uuid = UUID.fromString(pm.getUuid());
         this.credentialsProvider = new StaticCredentialsProvider(uuid,
-                pm.getNumber(), password, "signalingkey");
+                pm.getNumber(), password, "signalingkey", webApi.getDeviceId());
         this.signalServiceAddress = new SignalServiceAddress(uuid, pm.getNumber());
 
         generateAndRegisterKeys();
         store.setRegistrationId(regid);
-      //  store = new SignalProtocolStoreImpl(identityKeypair, regid);
-      //  Elita.setStore(store);
- //       store = new InMemorySignalProtocolStore(identityKeypair, regid);
+        //  store = new SignalProtocolStoreImpl(identityKeypair, regid);
+        //  Elita.setStore(store);
+        //       store = new InMemorySignalProtocolStore(identityKeypair, regid);
         finishRegistration();
     }
 
@@ -223,11 +256,10 @@ public class Client { // implements WebSocketInterface.Listener {
 //        }
         webApi.registerCapabilities();
         try {
-            sendRequestKeySyncMessage();
-            sendRequestGroupSyncMessage();
-            sendRequestContactSyncMessage();
-//      await this.confirmKeys(keys);
-//      await this.registrationDone();
+            connect();
+            differentsendRequestKeySyncMessage();
+      //      sendRequestGroupSyncMessage();
+            differentsendRequestContactSyncMessage();
         } catch (UntrustedIdentityException ex) {
             Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
         } catch (InvalidKeyException ex) {
@@ -258,9 +290,9 @@ public class Client { // implements WebSocketInterface.Listener {
         Request request = Request.newBuilder().setType(Request.Type.KEYS).build();
         RequestMessage requestMessage = new RequestMessage(request);
         SignalServiceSyncMessage message = SignalServiceSyncMessage.forRequest(requestMessage);
-        SignalServiceMessageSender sender = 
-                new SignalServiceMessageSender(credentialsProvider, store, lock);
-      //  sender.sendMessage(message, org.whispersystems.libsignal.util.guava.Optional.absent());
+        SignalServiceMessageSender sender
+                = new SignalServiceMessageSender(credentialsProvider, store, lock);
+        //  sender.sendMessage(message, org.whispersystems.libsignal.util.guava.Optional.absent());
 
         OutgoingPushMessageList messages = sender.createMessageBundle(message, org.whispersystems.libsignal.util.guava.Optional.absent());
         String destination = messages.getDestination();
@@ -348,41 +380,116 @@ public class Client { // implements WebSocketInterface.Listener {
         return builder;
     }
 
-    private void InMemorySignalProtocolStore(IdentityKeyPair identityKeypair, int regid) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-    }
-/*
-    private void differentsendRequestKeySyncMessage() throws IOException, UntrustedIdentityException, InvalidKeyException {
-        String myUuid = webApi.getMyUuid();
-        String myNumber = webApi.getMyNumber();
+    private SignalServiceConfiguration createConfiguration() {
+        SignalServiceUrl[] urls = {
+            new SignalServiceUrl(SIGNAL_SERVICE_URL, trustStore)};
+        Map<Integer, SignalCdnUrl[]> cdnMap = new HashMap<>();
+        cdnMap.put(0, new SignalCdnUrl[]{new SignalCdnUrl("https://cdn.signal.org", trustStore)});
+        cdnMap.put(2, new SignalCdnUrl[]{new SignalCdnUrl("https://cdn2.signal.org", trustStore)});
+        SignalKeyBackupServiceUrl[] backup = new SignalKeyBackupServiceUrl[]{
+            new SignalKeyBackupServiceUrl(SIGNAL_KEY_BACKUP_URL, trustStore)};
 
+        SignalStorageUrl[] storageUrl = new SignalStorageUrl[]{
+            new SignalStorageUrl(SIGNAL_STORAGE_URL, trustStore)};
+        List<Interceptor> interceptors = new LinkedList<>();
+        SignalServiceConfiguration answer = new SignalServiceConfiguration(
+                urls, cdnMap,
+                new SignalContactDiscoveryUrl[]{new SignalContactDiscoveryUrl("https://api.directory.signal.org", trustStore)},
+                backup, storageUrl, interceptors,
+                Optional.absent(), Optional.absent(), null
+        );
+        return answer;
+    }
+    
+    private SignalServiceMessageReceiver createMessageReceiver() {
+        ConnectivityListener cl = new ClientConnectivityListener();
+        SleepTimer sleepTimer = m -> Thread.sleep(m);
+        SignalServiceMessageReceiver answer = new SignalServiceMessageReceiver(
+                signalServiceConfiguration,
+                credentialsProvider,
+                SIGNAL_USER_AGENT,
+                cl,
+                sleepTimer,
+                null,
+                true);
+        return answer;
+    }
+    
+    void processMessagePipe(SignalServiceMessagePipe pipe) {
+        Thread t = new Thread() {
+            @Override public void run() {
+                boolean listen = true;
+                while (listen) {
+                    try {
+                        SignalServiceEnvelope envelope = pipe.read(20, TimeUnit.SECONDS);
+                        SignalServiceContent content = mydecrypt(envelope);
+                        if (content.getSyncMessage().isPresent()) {
+                            SignalServiceSyncMessage sssm = content.getSyncMessage().get();
+                            processSyncMessage(sssm);
+                        }
+                    } catch (Exception ex) {
+                       ex.printStackTrace();
+                    }
+                }
+            }
+        };
+        t.start();
+    }
+    
+    private SignalServiceMessageSender createMessageSender(SignalServiceMessageReceiver receiver) {
+        SignalServiceMessagePipe messagePipe = receiver.createMessagePipe();
+        processMessagePipe(messagePipe);
+        ExecutorService executorService = new ScheduledThreadPoolExecutor(5);
+        SignalServiceMessageSender sender = new SignalServiceMessageSender(
+                signalServiceConfiguration,
+                credentialsProvider,
+                store,
+                lock,
+                SIGNAL_USER_AGENT,
+                true,
+                Optional.of(messagePipe),
+                Optional.of(receiver.createUnidentifiedMessagePipe()),
+                Optional.absent(),
+                null,
+                executorService,
+                512 * 1024,
+                true);
+        return sender;
+    }
+    
+    private void connect() {
+        System.err.println("[CLIENT] create receiver");
+        this.receiver = createMessageReceiver();
+                System.err.println("[CLIENT] created receiver, wait a bit");
+        try {
+            Thread.sleep(3000);
+        } catch (InterruptedException ex) {
+            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+        }
+                        System.err.println("[CLIENT] created receiver, waited a bit");
+
+        this.sender = createMessageSender(receiver);
+               try {
+            Thread.sleep(3000);
+        } catch (InterruptedException ex) {
+            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+
+    private void differentsendRequestKeySyncMessage() throws IOException, UntrustedIdentityException, InvalidKeyException {
         Request request = Request.newBuilder().setType(Request.Type.KEYS).build();
         RequestMessage requestMessage = new RequestMessage(request);
-        SignalServiceSyncMessage message = SignalServiceSyncMessage.forRequest(requestMessage);
-       // SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsProvider, store);
-        TrustStore trustStore = new TrustStoreImpl();
-        SignalServiceUrl ssu = new SignalServiceUrl("", trustStore);
-        SignalServiceConfiguration ssc = new SignalServiceConfiguration(
-                new SignalServiceUrl[]{new SignalServiceUrl("https://textsecure-service.whispersystems.org", trustStore)},
-                new SignalCdnUrl[]{new SignalCdnUrl("https://cdn.signal.org", trustStore),
-                    new SignalCdnUrl("https://cdn2.signal.org", trustStore)},
-                new SignalContactDiscoveryUrl[]{new SignalContactDiscoveryUrl("https://api.directory.signal.org", trustStore)} );
-        Optional<SignalServiceMessagePipe> ssmp = Optional.absent();
-        Optional<SignalServiceMessagePipe> ssmp2 = Optional.absent();
-        Optional<EventListener> ssmp3 = Optional.absent();
-        org.whispersystems.libsignal.util.guava.Optional<Object> nop = org.whispersystems.libsignal.util.guava.Optional.absent();
-        SignalServiceMessageSender sender = new SignalServiceMessageSender(ssc, credentialsProvider, store, SIGNAL_USER_AGENT, true,
-        ssmp,ssmp2,ssmp3);
+        SignalServiceSyncMessage message = SignalServiceSyncMessage.forRequest(requestMessage);      
         sender.sendMessage(message, org.whispersystems.libsignal.util.guava.Optional.absent());
-   }
-*/
-    private static Map<Integer, SignalCdnUrl[]> makeSignalCdnUrlMapFor(SignalCdnUrl[] cdn0Urls, SignalCdnUrl[] cdn2Urls) {
-        Map<Integer, SignalCdnUrl[]> result = new HashMap<>();
-        result.put(0, cdn0Urls);
-        result.put(2, cdn2Urls);
-        return Collections.unmodifiableMap(result);
     }
+        private void differentsendRequestContactSyncMessage() throws IOException, UntrustedIdentityException, InvalidKeyException {
 
+            Request request = Request.newBuilder().setType(Request.Type.CONTACTS).build();
+        RequestMessage requestMessage = new RequestMessage(request);
+        SignalServiceSyncMessage message = SignalServiceSyncMessage.forRequest(requestMessage);
+            sender.sendMessage(message, org.whispersystems.libsignal.util.guava.Optional.absent());
+
+        }
     void processSyncMessage(SignalServiceSyncMessage sssm) throws InvalidMessageException {
         if (sssm.getContacts().isPresent()) {
             ContactsMessage msg = sssm.getContacts().get();
@@ -390,9 +497,9 @@ public class Client { // implements WebSocketInterface.Listener {
             SignalServiceAttachmentPointer pointer = att.asPointer();
             int cdnNumber = pointer.getCdnNumber();
             String path = new String(pointer.getRemoteId().getV3().get());
-            ContentResponse response = webApi.fetchCdnHttp("GET", "/attachments/"+ path, null);
+            ContentResponse response = webApi.fetchCdnHttp("GET", "/attachments/" + path, null);
             byte[] bytes = response.getContent();
-            File output = new File("/tmp/"+ path);
+            File output = new File("/tmp/" + path);
             try {
                 Files.write(output.toPath(), bytes);
                 InputStream is = AttachmentCipherInputStream.createForAttachment(output.getAbsoluteFile(), pointer.getSize().or(0), pointer.getKey(), pointer.getDigest().get());
@@ -410,15 +517,15 @@ public class Client { // implements WebSocketInterface.Listener {
         DeviceContactsInputStream is = new DeviceContactsInputStream(ois);
         DeviceContact dc = is.read();
         while (dc != null) {
-            System.err.println("Got contact: "+dc.getName());
+            System.err.println("Got contact: " + dc.getName());
             if (dc.getAvatar().isPresent()) {
                 SignalServiceAttachmentStream ssas = dc.getAvatar().get();
                 long length = ssas.getLength();
                 InputStream inputStream = ssas.getInputStream();
-                byte[] b = new byte[(int)length];
+                byte[] b = new byte[(int) length];
                 inputStream.read(b);
                 String nr = dc.getAddress().getNumber().get();
-                File img = new File("/tmp/"+nr);
+                File img = new File("/tmp/" + nr);
                 com.google.common.io.Files.write(b, img);
             }
             System.err.println("Available? " + ois.available());
@@ -429,5 +536,41 @@ public class Client { // implements WebSocketInterface.Listener {
             }
         }
     }
+        SignalServiceContent mydecrypt(SignalServiceEnvelope sse) throws Exception {
+            SignalServiceCipher cipher = new SignalServiceCipher(getSignalServiceAddress(),
+                             getSignalServiceDataStore(),
+                    new LockImpl(),
+                             getCertificateValidator());
+            SignalServiceContent content = cipher.decrypt(sse);
+            return content;
+        }
+        
+    class ClientConnectivityListener implements ConnectivityListener {
 
+        @Override
+        public void onConnected() {
+            System.err.println("[PM] connected");
+        }
+
+        @Override
+        public void onConnecting() {
+            System.err.println("[PM] connecting");
+        }
+
+        @Override
+        public void onDisconnected() {
+            System.err.println("[PM] disconnected");
+        }
+
+        @Override
+        public void onAuthenticationFailure() {
+            throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        }
+
+        @Override
+        public boolean onGenericFailure(Response response, Throwable throwable) {
+            throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        }
+        
+    }
 }
