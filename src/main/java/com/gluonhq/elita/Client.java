@@ -64,6 +64,7 @@ import org.whispersystems.signalservice.api.messages.SignalServiceAttachment;
 import org.whispersystems.signalservice.api.messages.SignalServiceAttachmentPointer;
 import org.whispersystems.signalservice.api.messages.SignalServiceAttachmentStream;
 import org.whispersystems.signalservice.api.messages.SignalServiceContent;
+import org.whispersystems.signalservice.api.messages.SignalServiceDataMessage;
 import org.whispersystems.signalservice.api.messages.SignalServiceEnvelope;
 import org.whispersystems.signalservice.api.messages.multidevice.ContactsMessage;
 import org.whispersystems.signalservice.api.messages.multidevice.DeviceContact;
@@ -181,12 +182,21 @@ static final String SIGNAL_SERVICE_URL = "https://textsecure-service.whispersyst
         this.credentialsProvider = new StaticCredentialsProvider(uuid,
                 pm.getNumber(), password, "signalingkey", webApi.getDeviceId());
         this.signalServiceAddress = new SignalServiceAddress(uuid, pm.getNumber());
+        try {
+            Thread.sleep(5000);
+        } catch (InterruptedException ex) {
+            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+        }
 
+//connect();
+        try {
+            Thread.sleep(5000);
+        } catch (InterruptedException ex) {
+            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+        }
         generateAndRegisterKeys();
         store.setRegistrationId(regid);
-        //  store = new SignalProtocolStoreImpl(identityKeypair, regid);
-        //  Elita.setStore(store);
-        //       store = new InMemorySignalProtocolStore(identityKeypair, regid);
+
         finishRegistration();
     }
 
@@ -254,8 +264,9 @@ static final String SIGNAL_SERVICE_URL = "https://textsecure-service.whispersyst
 //            item.getSignedPreKey().
 //            store.storeSession(spa, sr);
 //        }
+try {
         webApi.registerCapabilities();
-        try {
+            System.err.println("WE USED TO CONNECT HERE");
             connect();
             differentsendRequestKeySyncMessage();
       //      sendRequestGroupSyncMessage();
@@ -307,12 +318,12 @@ static final String SIGNAL_SERVICE_URL = "https://textsecure-service.whispersyst
         Request request = Request.newBuilder().setType(Request.Type.CONTACTS).build();
         RequestMessage requestMessage = new RequestMessage(request);
         SignalServiceSyncMessage message = SignalServiceSyncMessage.forRequest(requestMessage);
-        SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsProvider, store, lock);
-
-        OutgoingPushMessageList messages = sender.createMessageBundle(message, org.whispersystems.libsignal.util.guava.Optional.absent());
-        String destination = messages.getDestination();
-        System.err.println("CONTACTdest = " + destination);
-        webApi.fetch(String.format(MESSAGE_PATH, messages.getDestination()), "PUT", JsonUtil.toJson(messages));
+    //    SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsProvider, store, lock);
+sender.sendMessage(message, Optional.absent());
+//        OutgoingPushMessageList messages = sender.createMessageBundle(message, org.whispersystems.libsignal.util.guava.Optional.absent());
+//        String destination = messages.getDestination();
+//        System.err.println("CONTACTdest = " + destination);
+//        webApi.fetch(String.format(MESSAGE_PATH, messages.getDestination()), "PUT", JsonUtil.toJson(messages));
     }
 
     private void sendRequestGroupSyncMessage() throws IOException, UntrustedIdentityException, InvalidKeyException {
@@ -361,23 +372,11 @@ static final String SIGNAL_SERVICE_URL = "https://textsecure-service.whispersyst
         SignedPreKeyEntity signedPreKeyEntity = new SignedPreKeyEntity(signedPreKey.getId(),
                 signedPreKey.getKeyPair().getPublicKey(),
                 signedPreKey.getSignature());
+//sender.getSocket().registerPreKeys(identityKey, signedPreKey, records);
 
-        ObjectMapper mapper = new ObjectMapper();
-
+ObjectMapper mapper = new ObjectMapper();
         String jsonData = mapper.writeValueAsString(new PreKeyState(entities, signedPreKeyEntity, identityKey));
-        // NOT USING SocketManager, hence http
         this.webApi.fetchHttp("PUT", String.format(PREKEY_PATH, ""), jsonData);
-    }
-
-    private static SignalServiceProtos.SyncMessage.Builder createSyncMessageBuilder() {
-        SecureRandom random = new SecureRandom();
-        byte[] padding = Util.getRandomLengthBytes(512);
-        random.nextBytes(padding);
-
-        SignalServiceProtos.SyncMessage.Builder builder = SignalServiceProtos.SyncMessage.newBuilder();
-        builder.setPadding(ByteString.copyFrom(padding));
-
-        return builder;
     }
 
     private SignalServiceConfiguration createConfiguration() {
@@ -421,9 +420,12 @@ static final String SIGNAL_SERVICE_URL = "https://textsecure-service.whispersyst
                 boolean listen = true;
                 while (listen) {
                     try {
+                        System.err.println("[PIPE] waiting for envelope...");
                         SignalServiceEnvelope envelope = pipe.read(20, TimeUnit.SECONDS);
+                        System.err.println("[PIPE] got envelope");
                         SignalServiceContent content = mydecrypt(envelope);
                         if (content.getSyncMessage().isPresent()) {
+                            System.err.println("[PIPE] envelope has syncmessage");
                             SignalServiceSyncMessage sssm = content.getSyncMessage().get();
                             processSyncMessage(sssm);
                         }
@@ -438,6 +440,7 @@ static final String SIGNAL_SERVICE_URL = "https://textsecure-service.whispersyst
     
     private SignalServiceMessageSender createMessageSender(SignalServiceMessageReceiver receiver) {
         SignalServiceMessagePipe messagePipe = receiver.createMessagePipe();
+        SignalServiceMessagePipe unidentifiedMessagePipe = receiver.createUnidentifiedMessagePipe();
         processMessagePipe(messagePipe);
         ExecutorService executorService = new ScheduledThreadPoolExecutor(5);
         SignalServiceMessageSender sender = new SignalServiceMessageSender(
@@ -448,7 +451,7 @@ static final String SIGNAL_SERVICE_URL = "https://textsecure-service.whispersyst
                 SIGNAL_USER_AGENT,
                 true,
                 Optional.of(messagePipe),
-                Optional.of(receiver.createUnidentifiedMessagePipe()),
+                Optional.of(unidentifiedMessagePipe),
                 Optional.absent(),
                 null,
                 executorService,
@@ -458,9 +461,16 @@ static final String SIGNAL_SERVICE_URL = "https://textsecure-service.whispersyst
     }
     
     private void connect() {
+        try {
+            webApi.registerSupportForUnauthenticatedDelivery();
+        } catch (IOException ex) {
+ex.printStackTrace();
+Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+        }
+
         System.err.println("[CLIENT] create receiver");
         this.receiver = createMessageReceiver();
-                System.err.println("[CLIENT] created receiver, wait a bit");
+        System.err.println("[CLIENT] created receiver, wait a bit");
         try {
             Thread.sleep(3000);
         } catch (InterruptedException ex) {
@@ -511,13 +521,14 @@ static final String SIGNAL_SERVICE_URL = "https://textsecure-service.whispersyst
         }
     }
 
-    private static void readContacts() throws FileNotFoundException, IOException {
+    private void readContacts() throws FileNotFoundException, IOException {
         File f = new File("/tmp/myin");
         InputStream ois = new FileInputStream(f);
         DeviceContactsInputStream is = new DeviceContactsInputStream(ois);
         DeviceContact dc = is.read();
         while (dc != null) {
-            System.err.println("Got contact: " + dc.getName());
+            System.err.println("Got contact: " + dc.getName()+", uuid = "+dc.getAddress().getUuid()
+            + ", nr = " + dc.getAddress().getNumber());
             if (dc.getAvatar().isPresent()) {
                 SignalServiceAttachmentStream ssas = dc.getAvatar().get();
                 long length = ssas.getLength();
@@ -527,6 +538,7 @@ static final String SIGNAL_SERVICE_URL = "https://textsecure-service.whispersyst
                 String nr = dc.getAddress().getNumber().get();
                 File img = new File("/tmp/" + nr);
                 com.google.common.io.Files.write(b, img);
+       //         store.storeSession(dc.getAddress(), null);
             }
             System.err.println("Available? " + ois.available());
             if (ois.available() == 0) {
@@ -534,6 +546,22 @@ static final String SIGNAL_SERVICE_URL = "https://textsecure-service.whispersyst
             } else {
                 dc = is.read();
             }
+        }
+     //   fakesend();
+    }
+    
+    private void fakesend() {
+        String erwin = "1ffa2360-2e8a-41b3-baa2-9c4c50f2c008";
+        UUID uuid = UUID.fromString(erwin);
+        String nr = "+32474996562";
+        Optional<SignalServiceAddress> add = SignalServiceAddress.fromRaw(erwin, nr);
+        SignalServiceDataMessage message = SignalServiceDataMessage.newBuilder().withBody("Hallo Patrick!").build();
+        try {
+            sender.sendMessage(add.get(), Optional.absent(), message);
+        } catch (UntrustedIdentityException ex) {
+            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IOException ex) {
+            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
         SignalServiceContent mydecrypt(SignalServiceEnvelope sse) throws Exception {

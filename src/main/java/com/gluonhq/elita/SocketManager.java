@@ -270,7 +270,7 @@ System.err.println("create request to "+url);
         ContentResponse response = null;
         try {
             response = request.send();
-            System.err.println("Got response from "+ request.getURI());
+            System.err.println("Got response from "+ request.getURI()+" with statuscode "+response.getStatus());
 //            System.err.println("got response: "+response);
 //            System.err.println("RESP " + response.getContentAsString());
             httpClient.stop();
@@ -305,11 +305,6 @@ System.err.println("create request to "+url);
                     System.err.println("decrypted: "+content);
                     if (content.getSyncMessage().isPresent()) {
                         SignalServiceSyncMessage sssm = content.getSyncMessage().get();
-//                        System.err.println("REQ ? " + sssm.getRequest());
-//                        System.err.println("CONTACTS? " + sssm.getContacts());
-//                        System.err.println("GROUPS? " + sssm.getGroups());
-//                        System.err.println("CONFIG? " + sssm.getConfiguration());
-//                        System.err.println("STICKER? " + sssm.getStickerPackOperations());
                         client.processSyncMessage(sssm);
 
                         if (sssm.getStickerPackOperations().isPresent()) {
