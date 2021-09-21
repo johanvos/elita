@@ -424,6 +424,7 @@ ObjectMapper mapper = new ObjectMapper();
                         SignalServiceEnvelope envelope = pipe.read(20, TimeUnit.SECONDS);
                         System.err.println("[PIPE] got envelope");
                         SignalServiceContent content = mydecrypt(envelope);
+                        System.err.println("[PIPE] got content: "+content);
                         if (content.getSyncMessage().isPresent()) {
                             System.err.println("[PIPE] envelope has syncmessage");
                             SignalServiceSyncMessage sssm = content.getSyncMessage().get();
@@ -471,19 +472,19 @@ Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
         System.err.println("[CLIENT] create receiver");
         this.receiver = createMessageReceiver();
         System.err.println("[CLIENT] created receiver, wait a bit");
-        try {
-            Thread.sleep(3000);
-        } catch (InterruptedException ex) {
-            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
-        }
+//        try {
+//            Thread.sleep(3000);
+//        } catch (InterruptedException ex) {
+//            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+//        }
                         System.err.println("[CLIENT] created receiver, waited a bit");
 
         this.sender = createMessageSender(receiver);
-               try {
-            Thread.sleep(3000);
-        } catch (InterruptedException ex) {
-            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
-        }
+//               try {
+//            Thread.sleep(3000);
+//        } catch (InterruptedException ex) {
+//            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+//        }
     }
 
     private void differentsendRequestKeySyncMessage() throws IOException, UntrustedIdentityException, InvalidKeyException {
@@ -547,7 +548,7 @@ Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
                 dc = is.read();
             }
         }
-     //   fakesend();
+        fakesend();
     }
     
     private void fakesend() {
@@ -564,14 +565,15 @@ Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
             Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
-        SignalServiceContent mydecrypt(SignalServiceEnvelope sse) throws Exception {
-            SignalServiceCipher cipher = new SignalServiceCipher(getSignalServiceAddress(),
-                             getSignalServiceDataStore(),
-                    new LockImpl(),
-                             getCertificateValidator());
-            SignalServiceContent content = cipher.decrypt(sse);
-            return content;
-        }
+    
+    SignalServiceContent mydecrypt(SignalServiceEnvelope sse) throws Exception {
+        SignalServiceCipher cipher = new SignalServiceCipher(getSignalServiceAddress(),
+                getSignalServiceDataStore(),
+                new LockImpl(),
+                getCertificateValidator());
+        SignalServiceContent content = cipher.decrypt(sse);
+        return content;
+    }
         
     class ClientConnectivityListener implements ConnectivityListener {
 
