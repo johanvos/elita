@@ -213,7 +213,7 @@ static final String SIGNAL_SERVICE_URL = "https://textsecure-service.whispersyst
     int connectCount = 0;
     boolean connecting = false;
 
-    private void connect(boolean firstrun) throws IOException, InvalidKeyException, org.whispersystems.libsignal.UntrustedIdentityException {
+    public void connect(boolean firstrun) throws IOException, InvalidKeyException, org.whispersystems.libsignal.UntrustedIdentityException {
         if (connecting) {
             Thread.dumpStack();
             throw new RuntimeException("Should not connect while connecting!");
@@ -548,20 +548,18 @@ Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
                 dc = is.read();
             }
         }
-        fakesend();
     }
     
-    private void fakesend() {
+    public void fakesend() {
         String erwin = "1ffa2360-2e8a-41b3-baa2-9c4c50f2c008";
-        UUID uuid = UUID.fromString(erwin);
+        String k = "f85468c1-6e8c-44df-9e4e-43d676910a4b";
         String nr = "+32474996562";
-        Optional<SignalServiceAddress> add = SignalServiceAddress.fromRaw(erwin, nr);
-        SignalServiceDataMessage message = SignalServiceDataMessage.newBuilder().withBody("Hallo Patrick!").build();
+        nr = "+32486497465";
+        Optional<SignalServiceAddress> add = SignalServiceAddress.fromRaw(k, nr);
+        SignalServiceDataMessage message = SignalServiceDataMessage.newBuilder().withBody("Elita test").build();
         try {
             sender.sendMessage(add.get(), Optional.absent(), message);
-        } catch (UntrustedIdentityException ex) {
-            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (IOException ex) {
+        } catch (UntrustedIdentityException | IOException ex) {
             Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
         }
     }

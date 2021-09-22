@@ -2,7 +2,6 @@ package com.gluonhq.elita;
 
 import com.gluonhq.elita.provisioning.ProvisioningManager;
 import com.google.common.io.Files;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -15,29 +14,21 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javafx.application.Application;
 import javafx.application.Platform;
-import javafx.beans.InvalidationListener;
-import javafx.beans.Observable;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.eclipse.jetty.client.HttpClient;
-import org.eclipse.jetty.client.api.ContentResponse;
-import org.eclipse.jetty.client.api.Request;
-import org.eclipse.jetty.util.ssl.SslContextFactory;
-import org.whispersystems.libsignal.logging.Log;
 import org.whispersystems.libsignal.logging.SignalProtocolLoggerProvider;
-import org.whispersystems.libsignal.state.SignalProtocolStore;
 import org.whispersystems.signalservice.api.messages.SignalServiceAttachmentStream;
 import org.whispersystems.signalservice.api.messages.multidevice.DeviceContact;
 import org.whispersystems.signalservice.api.messages.multidevice.DeviceContactsInputStream;
-import org.whispersystems.signalservice.api.messages.shared.SharedContact;
 import org.whispersystems.signalservice.internal.push.SignalServiceProtos;
 import org.whispersystems.signalservice.internal.push.SignalServiceProtos.ContactDetails;
 import org.whispersystems.signalservice.internal.push.SignalServiceProtos.ContactDetails.Avatar;
@@ -49,6 +40,7 @@ import signalservice.DeviceMessages.ProvisionMessage;
  */
 public class Elita extends Application {
 
+    final BorderPane bp = new BorderPane();
     final StackPane root = new StackPane();
     private Client client;
     private ProvisioningManager pm;
@@ -59,11 +51,24 @@ public class Elita extends Application {
     public void start(Stage primaryStage) throws Exception {
         SignalLogger logger = new SignalLogger();
         SignalProtocolLoggerProvider.setProvider(logger);
-        Scene scene = new Scene(root, 350, 350);
+        Scene scene = new Scene(bp, 350, 350);
         primaryStage.setTitle("Hello World!");
         primaryStage.setScene(scene);
         primaryStage.show();
+        Button sendButton = new Button("Send msg");
+        sendButton.setOnAction(e -> {
+            getClient().fakesend();
+        });
+        bp.setCenter(root);
+        bp.setBottom(sendButton);
         startClientFlow();
+    }
+    
+    public Client getClient() {
+        if (this.client == null) {
+            client = new Client(this);
+        }
+        return client;
     }
 
     public static SignalProtocolStoreImpl getSignalProtocolStore() {
