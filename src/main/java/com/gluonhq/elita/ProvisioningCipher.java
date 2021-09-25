@@ -1,5 +1,6 @@
 package com.gluonhq.elita;
 // import com.gluonhq.elita.crypto.KeyUtil;
+import com.gluonhq.wave.provisioning.ProvisioningClient;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import java.security.InvalidAlgorithmParameterException;
@@ -25,8 +26,10 @@ import static signalservice.DeviceMessages.*;
 public class ProvisioningCipher {
     
     final ECKeyPair ourKeyPair;
+    final Elita elita;
 
-    public ProvisioningCipher() {
+    public ProvisioningCipher(Elita elita) {
+        this.elita = elita;
         ourKeyPair = Curve.generateKeyPair();
     }
 
@@ -71,15 +74,15 @@ public class ProvisioningCipher {
         System.err.println("cipherText has "+doFinal.length);
         ProvisionMessage pm = ProvisionMessage.parseFrom(doFinal);
         System.err.println("NR = " + pm.getNumber());
-        ECPrivateKey privateKey = Curve.decodePrivatePoint(pm.getIdentityKeyPrivate().toByteArray());
-        ECPublicKey publicKey = Curve.createPublicKeyFromPrivateKey(pm.getIdentityKeyPrivate().toByteArray());
-     
-        ECKeyPair keyPair = new ECKeyPair(publicKey, privateKey);
-        System.err.println("identitykp = "+ keyPair);
-        IdentityKey identityKey = new IdentityKey(publicKey);
-        IdentityKeyPair ikp = new IdentityKeyPair(identityKey, privateKey);
-        Elita.getSignalProtocolStore().setIdentityKeyPair(ikp);
-      //  KeyUtil.setIdentityKeyPair(keyPair);
+//        ECPrivateKey privateKey = Curve.decodePrivatePoint(pm.getIdentityKeyPrivate().toByteArray());
+//        ECPublicKey publicKey = Curve.createPublicKeyFromPrivateKey(pm.getIdentityKeyPrivate().toByteArray());
+//     
+//        ECKeyPair keyPair = new ECKeyPair(publicKey, privateKey);
+//        System.err.println("identitykp = "+ keyPair);
+//        IdentityKey identityKey = new IdentityKey(publicKey);
+//        IdentityKeyPair ikp = new IdentityKeyPair(identityKey, privateKey);
+//        Elita.getSignalProtocolStore().setIdentityKeyPair(ikp);
+        elita.saveIdentityKeyPair(pm.getIdentityKeyPrivate().toByteArray());
         return pm;
     }
     

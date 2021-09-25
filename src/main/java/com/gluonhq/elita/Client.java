@@ -4,9 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import static com.gluonhq.elita.SocketManager.getCertificateValidator;
 import com.gluonhq.elita.crypto.KeyUtil;
-// import com.gluonhq.elita.crypto.KeyUtil;
 import com.gluonhq.elita.storage.User;
-import com.google.protobuf.ByteString;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -15,7 +13,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -52,7 +52,6 @@ import org.whispersystems.libsignal.state.SignedPreKeyRecord;
 import org.whispersystems.libsignal.util.guava.Optional;
 import org.whispersystems.signalservice.api.SignalServiceMessagePipe;
 import org.whispersystems.signalservice.api.SignalServiceMessageReceiver;
-//import org.whispersystems.signalservice.api.SignalServiceDataStore;
 import org.whispersystems.signalservice.api.SignalServiceMessageSender;
 import org.whispersystems.signalservice.api.SignalServiceMessageSender.EventListener;
 import org.whispersystems.signalservice.api.crypto.AttachmentCipherInputStream;
@@ -102,7 +101,7 @@ import signalservice.DeviceMessages.*;
 @WebSocket(maxTextMessageSize = 64 * 1024)
 public class Client { // implements WebSocketInterface.Listener {
 
-    static final String SIGNAL_USER_AGENT = "Signal-Desktop/5.14.0 Linux";
+    public static final String SIGNAL_USER_AGENT = "Signal-Desktop/5.14.0 Linux";
 static final String SIGNAL_KEY_BACKUP_URL = "https://api.backup.signal.org";
 static final String SIGNAL_STORAGE_URL = "https://storage.signal.org";
 static final String SIGNAL_SERVICE_URL = "https://textsecure-service.whispersystems.org";
@@ -110,7 +109,7 @@ static final String SIGNAL_SERVICE_URL = "https://textsecure-service.whispersyst
     static final String PREKEY_PATH = "/v2/keys/%s";
     private static final String MESSAGE_PATH = "/v1/messages/%s";
     private static final Map<String, String> NO_HEADERS = Collections.emptyMap();
-   final TrustStore trustStore = new TrustStoreImpl();
+   static final TrustStore trustStore = new TrustStoreImpl();
 
    final SignalServiceConfiguration signalServiceConfiguration;
    
@@ -140,7 +139,7 @@ static final String SIGNAL_SERVICE_URL = "https://textsecure-service.whispersyst
         this.elita = elita;
         this.webApi = new WebAPI(this, SERVER_NAME);
         this.webSocket = new WebSocketInterface();
-        this.provisioningCipher = new ProvisioningCipher();
+        this.provisioningCipher = new ProvisioningCipher(elita);
         this.sr = new SecureRandom();
         this.signalServiceConfiguration = createConfiguration();
     }
@@ -166,39 +165,40 @@ static final String SIGNAL_SERVICE_URL = "https://textsecure-service.whispersyst
         //    this.webApi.provision();
     }
 
-    public void createAccount(ProvisionMessage pm, String deviceName) throws JsonProcessingException, IOException {
-        System.err.println("Creating device " + deviceName);
-        byte[] b = new byte[16];
-        new SecureRandom().nextBytes(b);
-        String password = new String(b, StandardCharsets.UTF_8);
-        password = Base64.getEncoder().encodeToString(password.getBytes());
-
-        password = password.substring(0, password.length() - 2);
-        regid = new SecureRandom().nextInt(16384) & 0x3fff;
-        webApi.confirmCode(pm.getNumber(), pm.getProvisioningCode(), password,
-                regid, deviceName, pm.getUuid());
-        System.err.println("got code");
-        UUID uuid = UUID.fromString(pm.getUuid());
-        this.credentialsProvider = new StaticCredentialsProvider(uuid,
-                pm.getNumber(), password, "signalingkey", webApi.getDeviceId());
-        this.signalServiceAddress = new SignalServiceAddress(uuid, pm.getNumber());
-        try {
-            Thread.sleep(5000);
-        } catch (InterruptedException ex) {
-            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
-        }
-
-//connect();
-        try {
-            Thread.sleep(5000);
-        } catch (InterruptedException ex) {
-            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
-        }
-        generateAndRegisterKeys();
-        store.setRegistrationId(regid);
-
-        finishRegistration();
-    }
+//    public void createAccount(ProvisionMessage pm, String deviceName) throws JsonProcessingException, IOException {
+//        System.err.println("Creating device " + deviceName);
+//        byte[] b = new byte[16];
+//        new SecureRandom().nextBytes(b);
+//        String password = new String(b, StandardCharsets.UTF_8);
+//        password = Base64.getEncoder().encodeToString(password.getBytes());
+//
+//        password = password.substring(0, password.length() - 2);
+//        regid = new SecureRandom().nextInt(16384) & 0x3fff;
+//        webApi.confirmCode(pm.getNumber(), pm.getProvisioningCode(), password,
+//                regid, deviceName, pm.getUuid());
+//        System.err.println("got code");
+//        UUID uuid = UUID.fromString(pm.getUuid());
+//        this.credentialsProvider = new StaticCredentialsProvider(uuid,
+//                pm.getNumber(), password, "signalingkey", webApi.getDeviceId());
+//        storeCredentialsProvider();
+//        this.signalServiceAddress = new SignalServiceAddress(uuid, pm.getNumber());
+//        try {
+//            Thread.sleep(5000);
+//        } catch (InterruptedException ex) {
+//            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+//        }
+//
+////connect();
+//        try {
+//            Thread.sleep(5000);
+//        } catch (InterruptedException ex) {
+//            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+//        }
+//        generateAndRegisterKeys();
+//        store.setRegistrationId(regid);
+//
+//        finishRegistration();
+//    }
 
     private void finishRegistration() throws IOException {
         this.webApi.authenticate();
@@ -215,14 +215,12 @@ static final String SIGNAL_SERVICE_URL = "https://textsecure-service.whispersyst
 
     public void connect(boolean firstrun) throws IOException, InvalidKeyException, org.whispersystems.libsignal.UntrustedIdentityException {
         if (connecting) {
-            Thread.dumpStack();
             throw new RuntimeException("Should not connect while connecting!");
         }
         connecting = true;
         this.webApi.getConfig(msg -> this.remoteConfig = msg);
 
         synchronizeData();
-        webApi.registerSupportForUnauthenticatedDelivery();
         PreKeyResponse response = webApi.getKeysForIdentifier();
 
         List<PreKeyBundle> bundles = new LinkedList<>();
@@ -372,14 +370,14 @@ sender.sendMessage(message, Optional.absent());
         SignedPreKeyEntity signedPreKeyEntity = new SignedPreKeyEntity(signedPreKey.getId(),
                 signedPreKey.getKeyPair().getPublicKey(),
                 signedPreKey.getSignature());
-//sender.getSocket().registerPreKeys(identityKey, signedPreKey, records);
+// sender.getSocket().registerPreKeys(identityKey, signedPreKey, records);
 
 ObjectMapper mapper = new ObjectMapper();
         String jsonData = mapper.writeValueAsString(new PreKeyState(entities, signedPreKeyEntity, identityKey));
         this.webApi.fetchHttp("PUT", String.format(PREKEY_PATH, ""), jsonData);
     }
 
-    private SignalServiceConfiguration createConfiguration() {
+    public static SignalServiceConfiguration createConfiguration() {
         SignalServiceUrl[] urls = {
             new SignalServiceUrl(SIGNAL_SERVICE_URL, trustStore)};
         Map<Integer, SignalCdnUrl[]> cdnMap = new HashMap<>();
@@ -401,6 +399,11 @@ ObjectMapper mapper = new ObjectMapper();
     }
     
     private SignalServiceMessageReceiver createMessageReceiver() {
+        // ensure configuration and provider are ok
+        assert(signalServiceConfiguration != null);
+        assert(credentialsProvider != null);
+        if (signalServiceConfiguration == null) throw new IllegalArgumentException ("no signalserviceconfiguration");
+        if (credentialsProvider == null) throw new IllegalArgumentException ("no credentialsProvider");
         ConnectivityListener cl = new ClientConnectivityListener();
         SleepTimer sleepTimer = m -> Thread.sleep(m);
         SignalServiceMessageReceiver answer = new SignalServiceMessageReceiver(
@@ -425,10 +428,13 @@ ObjectMapper mapper = new ObjectMapper();
                         System.err.println("[PIPE] got envelope");
                         SignalServiceContent content = mydecrypt(envelope);
                         System.err.println("[PIPE] got content: "+content);
-                        if (content.getSyncMessage().isPresent()) {
-                            System.err.println("[PIPE] envelope has syncmessage");
-                            SignalServiceSyncMessage sssm = content.getSyncMessage().get();
-                            processSyncMessage(sssm);
+                        System.err.println("[PIPE] envelope Type = " + envelope.getType());
+                        if (content != null) {
+                            if (content.getSyncMessage().isPresent()) {
+                                System.err.println("[PIPE] envelope has syncmessage");
+                                SignalServiceSyncMessage sssm = content.getSyncMessage().get();
+                                processSyncMessage(sssm);
+                            }
                         }
                     } catch (Exception ex) {
                        ex.printStackTrace();
@@ -461,30 +467,19 @@ ObjectMapper mapper = new ObjectMapper();
         return sender;
     }
     
-    private void connect() {
-        try {
-            webApi.registerSupportForUnauthenticatedDelivery();
-        } catch (IOException ex) {
-ex.printStackTrace();
-Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
-        }
+    private boolean connected = false;
+    
+    public void ensureConnected() {
+        if (connected) return;
+        connect();
+    }
 
+    public void connect() {
         System.err.println("[CLIENT] create receiver");
         this.receiver = createMessageReceiver();
         System.err.println("[CLIENT] created receiver, wait a bit");
-//        try {
-//            Thread.sleep(3000);
-//        } catch (InterruptedException ex) {
-//            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
-//        }
-                        System.err.println("[CLIENT] created receiver, waited a bit");
-
         this.sender = createMessageSender(receiver);
-//               try {
-//            Thread.sleep(3000);
-//        } catch (InterruptedException ex) {
-//            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
-//        }
+        this.connected = true;
     }
 
     private void differentsendRequestKeySyncMessage() throws IOException, UntrustedIdentityException, InvalidKeyException {
@@ -516,7 +511,10 @@ Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
                 InputStream is = AttachmentCipherInputStream.createForAttachment(output.getAbsoluteFile(), pointer.getSize().or(0), pointer.getKey(), pointer.getDigest().get());
                 Files.copy(is, new File("/tmp/myin").toPath(), StandardCopyOption.REPLACE_EXISTING);
                 readContacts();
+                fakesend();
             } catch (IOException ex) {
+                Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+            } catch (InvalidKeyException ex) {
                 Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
             }
         }
@@ -550,7 +548,14 @@ Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
     
-    public void fakesend() {
+    public void fakesend() throws IOException, InvalidKeyException {
+        if (this.credentialsProvider == null) {
+            restoreCredentialsProvider();
+        }
+        if (store.getIdentityKeyPair() == null) {
+            elita.retrieveIdentityKeyPair();
+        }
+        ensureConnected();
         String erwin = "1ffa2360-2e8a-41b3-baa2-9c4c50f2c008";
         String k = "f85468c1-6e8c-44df-9e4e-43d676910a4b";
         String nr = "+32474996562";
@@ -572,22 +577,70 @@ Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
         SignalServiceContent content = cipher.decrypt(sse);
         return content;
     }
+
+    static Path getCredentialsPath() {
+        String dirname = System.getProperty("user.home")
+                + File.separator + ".signalfx";
+        File dir = new File(dirname);
+        dir.mkdirs();
+        Path path = dir.toPath().resolve("credentials");
+        return path;
+    }
+
+    // get credentials info from storage and populate instance fields.
+    void restoreCredentialsProvider() throws IOException {
+        Path path = getCredentialsPath();
+        List<String> lines = Files.readAllLines(path);
+        String uuidString = lines.get(0);
+        UUID uuid = UUID.fromString(uuidString);
+        String number = lines.get(1);
+        String password = lines.get(2);
+        int deviceId = Integer.parseInt(lines.get(3));
+        this.store.setDeviceId(deviceId);
+        this.credentialsProvider = new StaticCredentialsProvider(uuid,
+                number, password, "signalingkey", deviceId);
+        this.signalServiceAddress = new SignalServiceAddress(uuid, number);
+    }
         
+    void storeCredentialsProvider() throws IOException {
+        storeCredentialsProvider(this.credentialsProvider);
+    }
+    
+    public static void storeCredentialsProvider(CredentialsProvider cp) throws IOException {
+        if (cp == null) {
+            throw new IllegalArgumentException("No CredentialsProvider");
+        }
+        Path path = getCredentialsPath();
+        File credFile = path.toFile();
+        if (credFile.exists()) {
+            credFile.delete();
+        }
+        
+        UUID uuid = cp.getUuid();
+
+        Files.writeString(path, uuid.toString()+"\n", StandardOpenOption.CREATE);
+        Files.writeString(path, cp.getE164()+"\n", StandardOpenOption.APPEND);
+        Files.writeString(path, cp.getPassword()+"\n", StandardOpenOption.APPEND);
+        Files.writeString(path, Integer.toString(cp.getDeviceId())+"\n", StandardOpenOption.APPEND);
+        Files.writeString(path, cp.getSignalingKey()+"\n", StandardOpenOption.APPEND);
+    }
+
     class ClientConnectivityListener implements ConnectivityListener {
 
         @Override
         public void onConnected() {
-            System.err.println("[PM] connected");
+            System.err.println("[CL] connected");
+            Thread.dumpStack();
         }
 
         @Override
         public void onConnecting() {
-            System.err.println("[PM] connecting");
+            System.err.println("[CL] connecting");
         }
 
         @Override
         public void onDisconnected() {
-            System.err.println("[PM] disconnected");
+            System.err.println("[CL] disconnected");
         }
 
         @Override

@@ -130,63 +130,63 @@ public class WebAPI {
         }
     }
   //  private String basicAuth;
-    public void confirmCode(String number, String code, String newPassword, 
-        int registrationId, String deviceName, String uuid) throws JsonProcessingException {
-        this.uuid = uuid;
-        this.number = number;
-        String call = (deviceName  != null) ? "devices" : "accounts";
-        String urlPrefix = (deviceName != null) ? "/" : "/code";
-        this.socketManager.authenticate("", "");
-        System.err.println("Confirm code");
-
-        String body = getDeviceMapData(deviceName, registrationId);
-        System.err.println("body = "+body);
-        String username = number;
-        this.pwd = newPassword;
-        Map params = new HashMap();
-        List<String> headers = new LinkedList();
-        String authbase = username+":"+pwd;
-        this.basicAuth = Base64.getEncoder().encodeToString(authbase.getBytes());
-        System.err.println("result of "+ authbase+" conv = "+ basicAuth);
-        System.err.println("BA1 = "+basicAuth);
-        headers.add("Authorization:Basic "+basicAuth);
-        headers.add("content-type:application/json;charset=utf-8");
-        headers.add("User-Agent:Signal-Desktop/5.14.0 Linux");
-        headers.add("x-signal-agent:OWD");
-      
-        params.put("path", "/v1/" + call+"/"+code);
-        params.put("verb", "PUT");
-        params.put("body", body);
-        params.put("httpType", "PUT");
-        params.put("responseType", "json");
-        params.put("urlParameters", urlPrefix + code);
-        CountDownLatch cdl = new CountDownLatch(1);
-        Consumer<WebSocketResponseMessage> f = message -> {
-            System.err.println("Result for registerDevice got in!");
-            if (message.getStatus() == 200) {
-                String res = new String(message.getBody().get(), StandardCharsets.UTF_8);
-                System.err.println("result: "+res);
-                int c = res.indexOf(":");
-                String did = res.substring(c+1, res.length()-1);
-                this.deviceId = Integer.parseInt(did);
-                System.err.println("did = "+deviceId);
-            }
-           cdl.countDown();
-        };
-        try {
-            this.socketManager.fetch(params, headers, f);
-            
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-         try {
-                cdl.await(10, TimeUnit.SECONDS);
-            } catch (InterruptedException ex) {
-                Logger.getLogger(WebAPI.class.getName()).log(Level.SEVERE, null, ex);
-            }
-    }
-    
-    
+//    public void confirmCode(String number, String code, String newPassword, 
+//        int registrationId, String deviceName, String uuid) throws JsonProcessingException {
+//        this.uuid = uuid;
+//        this.number = number;
+//        String call = (deviceName  != null) ? "devices" : "accounts";
+//        String urlPrefix = (deviceName != null) ? "/" : "/code";
+//        this.socketManager.authenticate("", "");
+//        System.err.println("Confirm code");
+//
+//        String body = getDeviceMapData(deviceName, registrationId);
+//        System.err.println("body = "+body);
+//        String username = number;
+//        this.pwd = newPassword;
+//        Map params = new HashMap();
+//        List<String> headers = new LinkedList();
+//        String authbase = username+":"+pwd;
+//        this.basicAuth = Base64.getEncoder().encodeToString(authbase.getBytes());
+//        System.err.println("result of "+ authbase+" conv = "+ basicAuth);
+//        System.err.println("BA1 = "+basicAuth);
+//        headers.add("Authorization:Basic "+basicAuth);
+//        headers.add("content-type:application/json;charset=utf-8");
+//        headers.add("User-Agent:Signal-Desktop/5.14.0 Linux");
+//        headers.add("x-signal-agent:OWD");
+//      
+//        params.put("path", "/v1/" + call+"/"+code);
+//        params.put("verb", "PUT");
+//        params.put("body", body);
+//        params.put("httpType", "PUT");
+//        params.put("responseType", "json");
+//        params.put("urlParameters", urlPrefix + code);
+//        CountDownLatch cdl = new CountDownLatch(1);
+//        Consumer<WebSocketResponseMessage> f = message -> {
+//            System.err.println("Result for registerDevice got in!");
+//            if (message.getStatus() == 200) {
+//                String res = new String(message.getBody().get(), StandardCharsets.UTF_8);
+//                System.err.println("result: "+res);
+//                int c = res.indexOf(":");
+//                String did = res.substring(c+1, res.length()-1);
+//                this.deviceId = Integer.parseInt(did);
+//                System.err.println("did = "+deviceId);
+//            }
+//           cdl.countDown();
+//        };
+//        try {
+//            this.socketManager.fetch(params, headers, f);
+//            
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
+//         try {
+//                cdl.await(10, TimeUnit.SECONDS);
+//            } catch (InterruptedException ex) {
+//                Logger.getLogger(WebAPI.class.getName()).log(Level.SEVERE, null, ex);
+//            }
+//    }
+//    
+//    
     void getGroupCredentials(long startDate, long endDate) throws IOException {
         List<String> headers = getDefaultHeaders();
         Optional<String> auth = createBasicAuthHeader();
@@ -198,7 +198,7 @@ public class WebAPI {
         this.socketManager.fetch(params, headers, null);
     }
     
-    void registerSupportForUnauthenticatedDelivery() throws IOException {
+    void dontregisterSupportForUnauthenticatedDelivery() throws IOException {
         List<String> headers = getDefaultHeaders();
         Optional<String> auth = createBasicAuthHeader();
         if (auth.isPresent()) headers.add(auth.get());
@@ -254,23 +254,22 @@ public class WebAPI {
         sm.fetch(params, headers, c -> {System.err.println("SENT KEYS");});
     }
 
-    private String getDeviceMapData(String name, int registrationId) throws JsonProcessingException {
-        ObjectMapper mapper = new ObjectMapper();
-
-        ObjectNode capabilities = createDefaultCapabilities();
-
-        ObjectNode jsonData = mapper.createObjectNode();
-        System.err.println("DOOH");
-        jsonData.set("capabilities", capabilities);
-        jsonData.put("fetchesMessages", true);
-        jsonData.put("name", name);
-        jsonData.put("registrationId", registrationId);
-        jsonData.put("supportsSms", false);
-        jsonData.put("unrestrictedUnidentifiedAccess", false);
-        String answer = mapper.writeValueAsString(jsonData);
-        return answer;
-
-    }
+//    private String getDeviceMapData(String name, int registrationId) throws JsonProcessingException {
+//        ObjectMapper mapper = new ObjectMapper();
+//
+//        ObjectNode capabilities = createDefaultCapabilities();
+//
+//        ObjectNode jsonData = mapper.createObjectNode();
+//        System.err.println("DOOH");
+//        jsonData.set("capabilities", capabilities);
+//        jsonData.put("fetchesMessages", true);
+//        jsonData.put("name", name);
+//        jsonData.put("registrationId", registrationId);
+//        jsonData.put("supportsSms", false);
+//        jsonData.put("unrestrictedUnidentifiedAccess", false);
+//        String answer = mapper.writeValueAsString(jsonData);
+//        return answer;
+//    }
 
     ContentResponse fetchHttp(String method, String path, String jsonData) {
         System.err.println("[SEND] fetchhttp: "+method+" "+path);

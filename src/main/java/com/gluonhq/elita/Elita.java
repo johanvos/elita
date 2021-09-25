@@ -1,15 +1,18 @@
 package com.gluonhq.elita;
 
 import com.gluonhq.elita.provisioning.ProvisioningManager;
-import com.google.common.io.Files;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.security.NoSuchAlgorithmException;
 import java.security.Security;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javafx.application.Application;
@@ -25,6 +28,13 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.whispersystems.libsignal.IdentityKey;
+import org.whispersystems.libsignal.IdentityKeyPair;
+import org.whispersystems.libsignal.InvalidKeyException;
+import org.whispersystems.libsignal.ecc.Curve;
+import org.whispersystems.libsignal.ecc.ECKeyPair;
+import org.whispersystems.libsignal.ecc.ECPrivateKey;
+import org.whispersystems.libsignal.ecc.ECPublicKey;
 import org.whispersystems.libsignal.logging.SignalProtocolLoggerProvider;
 import org.whispersystems.signalservice.api.messages.SignalServiceAttachmentStream;
 import org.whispersystems.signalservice.api.messages.multidevice.DeviceContact;
@@ -38,14 +48,14 @@ import signalservice.DeviceMessages.ProvisionMessage;
  *
  * @author johan
  */
-public class Elita extends Application {
+public class Elita extends Application { // implements ProvisioningClient {
 
     final BorderPane bp = new BorderPane();
     final StackPane root = new StackPane();
     private Client client;
     private ProvisioningManager pm;
     private ProvisionMessage provisionResult;
-    private static SignalProtocolStoreImpl signalProtocolStore = new SignalProtocolStoreImpl();
+    private final static SignalProtocolStoreImpl signalProtocolStore = new SignalProtocolStoreImpl();
 
     @Override
     public void start(Stage primaryStage) throws Exception {
@@ -57,7 +67,13 @@ public class Elita extends Application {
         primaryStage.show();
         Button sendButton = new Button("Send msg");
         sendButton.setOnAction(e -> {
-            getClient().fakesend();
+            try {
+                getClient().fakesend();
+            } catch (IOException ex) {
+                Logger.getLogger(Elita.class.getName()).log(Level.SEVERE, null, ex);
+            } catch (InvalidKeyException ex) {
+                Logger.getLogger(Elita.class.getName()).log(Level.SEVERE, null, ex);
+            }
         });
         bp.setCenter(root);
         bp.setBottom(sendButton);
@@ -110,14 +126,11 @@ public class Elita extends Application {
         btn.setOnAction(b -> {
             final String name = tf.getText();
             try {
-            //    pm.createAccount(name);
-                pm.stop();
-                client = new Client(Elita.this);
-                client.startup();
+                btn.setDisable(true);
                 Thread t = new Thread() {
                     @Override public void run() {
                         try {
-                            client.createAccount(provisionResult, name);
+                            pm.createAccount(provisionResult, name);
                         } catch (IOException ex) {
                             Logger.getLogger(Elita.class.getName()).log(Level.SEVERE, null, ex);
                         }
@@ -137,7 +150,45 @@ public class Elita extends Application {
         ImageView iv = new ImageView(image);
         Platform.runLater(() -> root.getChildren().add(iv));
     }
+    
+    void saveIdentityKeyPair(byte[] b) throws InvalidKeyException {
+        String dirname = System.getProperty("user.home")
+                + File.separator + ".signalfx";
+        File dir = new File(dirname);
+        dir.mkdirs();
+        Path path = dir.toPath().resolve("keypair");
+        try {
+            Files.write(path, b, StandardOpenOption.CREATE);
+        } catch (IOException ex) {
+            Logger.getLogger(Elita.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        storeIdentityKeyPair(b);
+    }
+    
+    void storeIdentityKeyPair(byte[] b) throws InvalidKeyException {
+        ECPrivateKey privateKey = Curve.decodePrivatePoint(b);
+        ECPublicKey publicKey = Curve.createPublicKeyFromPrivateKey(b);
+        ECKeyPair keyPair = new ECKeyPair(publicKey, privateKey);
+        System.err.println("identitykp = "+ keyPair);
+        IdentityKey identityKey = new IdentityKey(publicKey);
+        IdentityKeyPair ikp = new IdentityKeyPair(identityKey, privateKey);
+        getSignalProtocolStore().setIdentityKeyPair(ikp);
+    }
 
+    void retrieveIdentityKeyPair () throws InvalidKeyException {
+                String dirname = System.getProperty("user.home")
+                + File.separator + ".signalfx";
+        File dir = new File(dirname);
+        dir.mkdirs();
+        Path path = dir.toPath().resolve("keypair");
+        try {
+            byte[] b = Files.readAllBytes(path);
+            storeIdentityKeyPair(b);
+        } catch (IOException ex) {
+            Logger.getLogger(Elita.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+    
     public static void main(String[] args) throws Exception {
         try {
             Security.addProvider(new BouncyCastleProvider());
@@ -145,59 +196,35 @@ public class Elita extends Application {
             int maxKeySize = javax.crypto.Cipher.getMaxAllowedKeyLength("AES");
             System.err.println("max AES keysize = "+maxKeySize);
             launch();
-            //buildContacts();
-            //readContacts();
+         //   writeCred();
+         //   readCred();
         } catch (NoSuchAlgorithmException ex) {
             Logger.getLogger(Elita.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
     
-    private static void readContacts() throws FileNotFoundException, IOException {
-        File f = new File("/tmp/myin");
-        InputStream ois = new FileInputStream(f);
-        DeviceContactsInputStream is = new DeviceContactsInputStream(ois);
-        DeviceContact dc = is.read();
-        while (dc != null) {
-            System.err.println("Got contact: "+dc.getName());
-            if (dc.getAvatar().isPresent()) {
-                SignalServiceAttachmentStream ssas = dc.getAvatar().get();
-                long length = ssas.getLength();
-                InputStream inputStream = ssas.getInputStream();
-                byte[] b = new byte[(int)length];
-                inputStream.read(b);
-                String nr = dc.getAddress().getNumber().get();
-                File img = new File("/tmp/"+nr);
-                Files.write(b, img);
-            }
-            System.err.println("Available? " + ois.available());
-            if (ois.available() == 0) {
-                dc = null;
-            } else {
-                dc = is.read();
-            }
-        }
-
-        
-//        SignalServiceProtos.ContactDetails parseFrom = 
-//                SignalServiceProtos.ContactDetails.parseDelimitedFrom(ois);
-//        while (parseFrom != null) {
-//            System.err.println("\ndetails = " + parseFrom.getAllFields() + "\n");
-//            Avatar avatar = parseFrom.getAvatar();
-//            System.err.println("avatar = "+ avatar.getAllFields());
-//            parseFrom = SignalServiceProtos.ContactDetails.parseDelimitedFrom(is);
-//        }
+    static void writeCred() throws IOException {
+     String dirname = System.getProperty("user.home")
+                + File.separator+".signalfx";
+     File dir = new File(dirname);
+     dir.mkdirs();
+        Path path = dir.toPath().resolve("credentials");
+       File credFile = path.toFile();
+       if (credFile.exists()) {
+           credFile.delete();
+       }
+        java.nio.file.Files.writeString(path, "hello"+"\n", StandardOpenOption.CREATE);
+           java.nio.file.Files.writeString(path, "world\n",  StandardOpenOption.APPEND);
+           java.nio.file.Files.writeString(path, "here\n",  StandardOpenOption.APPEND);
+           
+     System.err.println("DONE writing");
     }
     
-    private static void buildContacts() throws FileNotFoundException, IOException {
-        ContactDetails.Builder cdb = SignalServiceProtos.ContactDetails.newBuilder();
-        cdb.setName("BRAM");
-        cdb.setNumber("+32474742283");
-        Avatar.Builder ab = SignalServiceProtos.ContactDetails.Avatar.newBuilder();
-        ContactDetails cd = cdb.build();
-        byte[] b = cd.toByteArray();
-        File f = new File("/tmp/cre");
-        FileOutputStream fos = new FileOutputStream(f);
-        fos.write(b);
-    
+    static void readCred() throws IOException {
+             String dirname = System.getProperty("user.home")
+                + File.separator+".signalfx";
+     File dir = new File(dirname);Path path = dir.toPath().resolve("credentials");
+        List<String> lines = java.nio.file.Files.readAllLines(path);
+        System.err.println("lines = "+lines);
     }
 }

@@ -1,8 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package com.gluonhq.elita;
 
 import java.io.IOException;
@@ -34,13 +29,15 @@ public class SignalProtocolStoreImpl implements SignalServiceProtocolStore {
     private final Map<SignalProtocolAddress, IdentityKey> trustedKeys = new HashMap<>();
 
     private int localRegistrationId;
+    
+    private int deviceId;
 
     public SignalProtocolStoreImpl() {}
     
-    public SignalProtocolStoreImpl(IdentityKeyPair ikp, int registrationId) {
+    public SignalProtocolStoreImpl(IdentityKeyPair ikp, int registrationId, int deviceId) {
         this.identityKeyPair = ikp;
         this.localRegistrationId = registrationId;
-        System.err.println("[SPSI] <init>");
+        this.deviceId = deviceId;
     }
     
     public void setIdentityKeyPair(IdentityKeyPair ikp) {
@@ -52,6 +49,10 @@ public class SignalProtocolStoreImpl implements SignalServiceProtocolStore {
         return this.identityKeyPair;
     }
     
+    public void setDeviceId(int devid) {
+        this.deviceId = devid;
+    }
+    
     public void setRegistrationId(int regid) {
         this.localRegistrationId = regid;
     }
@@ -60,6 +61,7 @@ public class SignalProtocolStoreImpl implements SignalServiceProtocolStore {
     public int getLocalRegistrationId() {
         return this.localRegistrationId;
     }
+    
   @Override
   public boolean saveIdentity(SignalProtocolAddress address, IdentityKey identityKey) {
     IdentityKey existing = trustedKeys.get(address);
@@ -146,10 +148,10 @@ public class SignalProtocolStoreImpl implements SignalServiceProtocolStore {
     List<Integer> deviceIds = new LinkedList<>();
 
     for (SignalProtocolAddress key : sessions.keySet()) {
-      if (key.getName().equals(name) &&
-          key.getDeviceId() != 1)
-      {
+      if (key.getName().equals(name) && key.getDeviceId() != deviceId) {
         deviceIds.add(key.getDeviceId());
+      } else {
+          System.err.println("[getSubDeviceSessions] ignore "+key.getName()+" with id "+key.getDeviceId());
       }
     }
       System.err.println("SUBDEVICES asked for "+name+", return "+ deviceIds);
@@ -158,6 +160,8 @@ public class SignalProtocolStoreImpl implements SignalServiceProtocolStore {
   
   @Override
   public synchronized void storeSession(SignalProtocolAddress address, SessionRecord record) {
+      Thread.dumpStack();
+      System.err.println("[storeSession] with address "+address.getName()+" and id "+address.getDeviceId());
     sessions.put(address, record.serialize());
   }
 
