@@ -1,4 +1,4 @@
-package com.gluonhq.elita.provisioning;
+package com.gluonhq.wave.provisioning;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -8,7 +8,7 @@ import com.gluonhq.elita.Elita;
 import com.gluonhq.elita.ProvisioningCipher;
 import com.gluonhq.elita.TrustStoreImpl;
 import com.gluonhq.elita.crypto.KeyUtil;
-import com.gluonhq.wave.provisioning.ProvisioningClient;
+import com.gluonhq.wave.WaveManager;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import java.io.IOException;
@@ -21,13 +21,11 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
 import okhttp3.Response;
 import org.whispersystems.libsignal.IdentityKeyPair;
 import org.whispersystems.libsignal.state.PreKeyRecord;
 import org.whispersystems.libsignal.state.SignedPreKeyRecord;
 import org.whispersystems.libsignal.util.guava.Optional;
-import org.whispersystems.signalservice.api.push.SignalServiceAddress;
 import org.whispersystems.signalservice.api.push.TrustStore;
 import org.whispersystems.signalservice.api.util.CredentialsProvider;
 import org.whispersystems.signalservice.api.util.SleepTimer;
@@ -60,9 +58,10 @@ public class ProvisioningManager {
     String dest = "wss://textsecure-service.whispersystems.org";
     private PushServiceSocket accountSocket;
     private String number = null;
+    private ProvisionMessage pm = null;
     
-    private Elita elita;
-    
+    private ProvisioningClient elita;
+    private WaveManager waveManager;
 
     /**
      * Flow: when the start method is invoked, this class will generate a URL
@@ -73,10 +72,11 @@ public class ProvisioningManager {
      * registration.
      * @param elita 
      */
-    public ProvisioningManager(Elita elita) {
+    public ProvisioningManager(WaveManager wave, ProvisioningClient elita) {
         this.elita = elita;
+        this.waveManager = wave;
         this.trustStore = new TrustStoreImpl();
-        this.provisioningCipher = new ProvisioningCipher(elita);
+        this.provisioningCipher = new ProvisioningCipher(waveManager);
     }
 
     public void start() {
@@ -125,13 +125,14 @@ public class ProvisioningManager {
             ourPubKey = URLEncoder.encode(ourPubKey, StandardCharsets.UTF_8);
             String url = "tsdevice:/?uuid=" + uuid + "&pub_key=" + ourPubKey;
             System.err.println("URL = " + url);
-            elita.setProvisioningURL(url);
+            elita.gotProvisioningUrl(url);
         } else if ("/v1/message".equals(path)) {
             try {
                 DeviceMessages.ProvisionEnvelope envelope = DeviceMessages.ProvisionEnvelope.parseFrom(data);
                 ProvisionMessage pm = provisioningCipher.decrypt(envelope);
-                
-                elita.gotProvisionMessage(pm);
+                this.pm = pm;
+                this.number = pm.getNumber();
+                elita.gotProvisionMessage(pm.getNumber());
                 this.stop();
             } catch (Exception ex) {
                 ex.printStackTrace();
@@ -165,8 +166,11 @@ public class ProvisioningManager {
                 Client.SIGNAL_USER_AGENT, null, true);
     }
     
-    public void createAccount(ProvisionMessage pm, String deviceName) throws JsonProcessingException, IOException {
-        System.err.println("Creating device " + deviceName);
+    public void createAccount(String nr, String deviceName) throws JsonProcessingException, IOException {
+        System.err.println("Creating device " + deviceName+" for number "+this.number);
+        if (!nr.equals(this.number)) {
+            throw new IllegalArgumentException("Can't create account for " + nr);
+        }
         startPreAccountWebSocket();
         byte[] b = new byte[16];
         new SecureRandom().nextBytes(b);
@@ -238,7 +242,7 @@ public class ProvisioningManager {
     }
 
     public void generateAndRegisterKeys() throws IOException {
-        IdentityKeyPair identityKeypair = Elita.getSignalProtocolStore().getIdentityKeyPair();
+        IdentityKeyPair identityKeypair = waveManager.getSignalProtocolStore().getIdentityKeyPair();
         SignedPreKeyRecord signedPreKey = KeyUtil.generateSignedPreKey(identityKeypair, true);
         List<PreKeyRecord> records = KeyUtil.generatePreKeys(100);
         String response = accountSocket.registerPreKeys(identityKeypair.getPublicKey(), signedPreKey, records);

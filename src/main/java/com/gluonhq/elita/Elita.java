@@ -1,12 +1,10 @@
 package com.gluonhq.elita;
 
-import com.gluonhq.elita.provisioning.ProvisioningManager;
+import com.gluonhq.wave.WaveManager;
+import com.gluonhq.wave.provisioning.ProvisioningManager;
+import com.gluonhq.wave.provisioning.ProvisioningClient;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -36,26 +34,19 @@ import org.whispersystems.libsignal.ecc.ECKeyPair;
 import org.whispersystems.libsignal.ecc.ECPrivateKey;
 import org.whispersystems.libsignal.ecc.ECPublicKey;
 import org.whispersystems.libsignal.logging.SignalProtocolLoggerProvider;
-import org.whispersystems.signalservice.api.messages.SignalServiceAttachmentStream;
-import org.whispersystems.signalservice.api.messages.multidevice.DeviceContact;
-import org.whispersystems.signalservice.api.messages.multidevice.DeviceContactsInputStream;
-import org.whispersystems.signalservice.internal.push.SignalServiceProtos;
-import org.whispersystems.signalservice.internal.push.SignalServiceProtos.ContactDetails;
-import org.whispersystems.signalservice.internal.push.SignalServiceProtos.ContactDetails.Avatar;
-import signalservice.DeviceMessages.ProvisionMessage;
 
 /**
  *
  * @author johan
  */
-public class Elita extends Application { // implements ProvisioningClient {
+public class Elita extends Application  implements ProvisioningClient {
 
     final BorderPane bp = new BorderPane();
     final StackPane root = new StackPane();
     private Client client;
-    private ProvisioningManager pm;
-    private ProvisionMessage provisionResult;
     private final static SignalProtocolStoreImpl signalProtocolStore = new SignalProtocolStoreImpl();
+    private String number;
+    private final WaveManager waveManager = new WaveManager();
 
     @Override
     public void start(Stage primaryStage) throws Exception {
@@ -96,8 +87,9 @@ public class Elita extends Application { // implements ProvisioningClient {
             @Override
             public void run() {
                 try {
-                    pm = new ProvisioningManager(Elita.this);
-                    pm.start();
+                    waveManager.startProvisioning(Elita.this);
+//                    pm = new ProvisioningManager(waveManager, Elita.this);
+  //                  pm.start();
                 } catch (Exception e) {
                     e.printStackTrace();
                     System.exit(0);
@@ -108,8 +100,8 @@ public class Elita extends Application { // implements ProvisioningClient {
     }
 
     // callback from ProvisioningManager
-    public void gotProvisionMessage(ProvisionMessage provisionResult) {
-        this.provisionResult = provisionResult;
+    public void gotProvisionMessage(String number) {
+        this.number = number;
         askLocalName();
     }
 
@@ -130,7 +122,7 @@ public class Elita extends Application { // implements ProvisioningClient {
                 Thread t = new Thread() {
                     @Override public void run() {
                         try {
-                            pm.createAccount(provisionResult, name);
+                            waveManager.createAccount(number, name);
                         } catch (IOException ex) {
                             Logger.getLogger(Elita.class.getName()).log(Level.SEVERE, null, ex);
                         }
@@ -144,7 +136,8 @@ public class Elita extends Application { // implements ProvisioningClient {
         });
     }
 
-    public void setProvisioningURL(String url) {
+    @Override
+    public void gotProvisioningUrl(String url) {
         System.err.println("[Elita] setProvisioningURL to "+url);
         Image image = QRGenerator.getImage(url);
         ImageView iv = new ImageView(image);

@@ -1,5 +1,6 @@
 package com.gluonhq.elita;
 // import com.gluonhq.elita.crypto.KeyUtil;
+import com.gluonhq.wave.WaveManager;
 import com.gluonhq.wave.provisioning.ProvisioningClient;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -26,9 +27,9 @@ import static signalservice.DeviceMessages.*;
 public class ProvisioningCipher {
     
     final ECKeyPair ourKeyPair;
-    final Elita elita;
+    final WaveManager elita;
 
-    public ProvisioningCipher(Elita elita) {
+    public ProvisioningCipher(WaveManager elita) {
         this.elita = elita;
         ourKeyPair = Curve.generateKeyPair();
     }

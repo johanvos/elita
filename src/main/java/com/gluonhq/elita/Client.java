@@ -139,7 +139,7 @@ static final String SIGNAL_SERVICE_URL = "https://textsecure-service.whispersyst
         this.elita = elita;
         this.webApi = new WebAPI(this, SERVER_NAME);
         this.webSocket = new WebSocketInterface();
-        this.provisioningCipher = new ProvisioningCipher(elita);
+        this.provisioningCipher = new ProvisioningCipher(null);
         this.sr = new SecureRandom();
         this.signalServiceConfiguration = createConfiguration();
     }
