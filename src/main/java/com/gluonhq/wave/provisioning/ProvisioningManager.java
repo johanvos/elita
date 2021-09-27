@@ -184,7 +184,7 @@ public class ProvisioningManager {
         this.credentialsProvider = new StaticCredentialsProvider(uuid,
                 pm.getNumber(), password, "signalingkey", deviceId);
         startAccountWebSocket();
-        Client.storeCredentialsProvider(this.credentialsProvider);
+        waveManager.storeCredentialsProvider(this.credentialsProvider);
         generateAndRegisterKeys();
     }
 

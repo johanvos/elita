@@ -109,6 +109,7 @@ public class WaveManager {
         dir.mkdirs();
     }
     private MessagingClient messageListener;
+    
     public WaveManager() {
         signalServiceConfiguration = createConfiguration();
         signalProtocolStore = new SignalProtocolStoreImpl();
@@ -459,7 +460,7 @@ public class WaveManager {
     }
 
     // get credentials info from storage and populate instance fields.
-    private final void restoreCredentialsProvider() throws IOException {
+    private void restoreCredentialsProvider() throws IOException {
         Path path = getCredentialsPath();
         List<String> lines = Files.readAllLines(path);
         String uuidString = lines.get(0);
@@ -476,11 +477,8 @@ public class WaveManager {
 
     }
 
-    void storeCredentialsProvider() throws IOException {
-        storeCredentialsProvider(this.credentialsProvider);
-    }
-
-    public static void storeCredentialsProvider(CredentialsProvider cp) throws IOException {
+    public void storeCredentialsProvider(CredentialsProvider cp) throws IOException {
+        this.credentialsProvider = cp;
         if (cp == null) {
             throw new IllegalArgumentException("No CredentialsProvider");
         }
@@ -497,6 +495,7 @@ public class WaveManager {
         Files.writeString(path, cp.getPassword() + "\n", StandardOpenOption.APPEND);
         Files.writeString(path, Integer.toString(cp.getDeviceId()) + "\n", StandardOpenOption.APPEND);
         Files.writeString(path, cp.getSignalingKey() + "\n", StandardOpenOption.APPEND);
+        restoreCredentialsProvider();
     }
 
     public SignalProtocolStoreImpl getSignalProtocolStore() {

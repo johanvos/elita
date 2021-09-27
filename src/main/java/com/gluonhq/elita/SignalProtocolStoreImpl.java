@@ -153,18 +153,18 @@ public class SignalProtocolStoreImpl implements SignalServiceProtocolStore {
   @Override
   public synchronized List<Integer> getSubDeviceSessions(String name) {
     List<Integer> deviceIds = new LinkedList<>();
-
-    for (SignalProtocolAddress key : sessions.keySet()) {
-      if (key.getName().equals(name) && 
-              !((key.getName().equals(myUuid)) && (key.getDeviceId() == deviceId))) {
-        deviceIds.add(key.getDeviceId());
-      } else {
-          System.err.println("[getSubDeviceSessions] ignore "+key.getName()+" with id "+key.getDeviceId());
-      }
+      System.err.println("getSubDeviceSessionas asked, myuuid = "+myUuid+" and devid = "+deviceId);
+        for (SignalProtocolAddress key : sessions.keySet()) {
+            if (key.getName().equals(name)
+                    && !((key.getName().equals(myUuid)) && (key.getDeviceId() == deviceId))) {
+                deviceIds.add(key.getDeviceId());
+            } else {
+                System.err.println("[getSubDeviceSessions] ignore " + key.getName() + " with id " + key.getDeviceId());
+            }
+        }
+        System.err.println("SUBDEVICES asked for " + name + ", return " + deviceIds);
+        return deviceIds;
     }
-      System.err.println("SUBDEVICES asked for "+name+", return "+ deviceIds);
-    return deviceIds;
-  }
   
     @Override
     public synchronized void storeSession(SignalProtocolAddress address, SessionRecord record) {
