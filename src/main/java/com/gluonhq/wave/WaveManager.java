@@ -5,7 +5,7 @@ import com.gluonhq.elita.LockImpl;
 import com.gluonhq.elita.SignalProtocolStoreImpl;
 // import static com.gluonhq.elita.SocketManager.getCertificateValidator;
 import com.gluonhq.elita.TrustStoreImpl;
-import com.gluonhq.elita.model.Contact;
+import com.gluonhq.wave.message.MessagingClient;
 import com.gluonhq.wave.provisioning.ProvisioningClient;
 import com.gluonhq.wave.provisioning.ProvisioningManager;
 import java.io.ByteArrayInputStream;
@@ -52,6 +52,7 @@ import org.whispersystems.signalservice.api.messages.SignalServiceAttachment;
 import org.whispersystems.signalservice.api.messages.SignalServiceAttachmentPointer;
 import org.whispersystems.signalservice.api.messages.SignalServiceAttachmentStream;
 import org.whispersystems.signalservice.api.messages.SignalServiceContent;
+import org.whispersystems.signalservice.api.messages.SignalServiceDataMessage;
 import org.whispersystems.signalservice.api.messages.SignalServiceEnvelope;
 import org.whispersystems.signalservice.api.messages.multidevice.ContactsMessage;
 import org.whispersystems.signalservice.api.messages.multidevice.DeviceContact;
@@ -107,6 +108,7 @@ public class WaveManager {
         File dir = new File(SIGNAL_FX);
         dir.mkdirs();
     }
+    private MessagingClient messageListener;
     public WaveManager() {
         signalServiceConfiguration = createConfiguration();
         signalProtocolStore = new SignalProtocolStoreImpl();
@@ -139,12 +141,40 @@ public class WaveManager {
         provisioningManager.createAccount(nr, deviceName);
         provisioningManager.stop();
     }
+    
+    // MESSAGES
+    public void setMessageListener(MessagingClient mc) {
+        this.messageListener = mc;
+    }
 
     // CONTACTS
     private ObservableList<Contact> contacts = FXCollections.observableArrayList();
+    private boolean contactStorageDirty = true;
 
     public ObservableList<Contact> getContacts() {
+        if (contactStorageDirty) {
+            try {
+                contacts.clear(); // TODO make this smarter
+                contacts.addAll(readContacts());
+                contactStorageDirty = false;
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        }
         return contacts;
+    }
+    
+    // read contacts from file
+    private List<Contact> readContacts() throws IOException {
+        File dir = new File(SIGNAL_FX);
+        Path path = dir.toPath().resolve("contacts");
+        List<String> lines = Files.readAllLines(path);
+        List<Contact> answer = new LinkedList<>();
+        for (int i = 0; i < lines.size(); i = i + 3) {
+            Contact c = new Contact(lines.get(i), lines.get(i+1), lines.get(i+2));
+            answer.add(c);
+        }
+        return answer;
     }
     
     private void storeContacts() throws IOException {
@@ -157,6 +187,7 @@ public class WaveManager {
             lines.add(contact.getNr());
         }
         Files.write(path, lines);
+        contactStorageDirty = true;
     }
 
     public void syncContacts() throws IOException, UntrustedIdentityException, InvalidKeyException {
@@ -166,6 +197,22 @@ public class WaveManager {
         RequestMessage requestMessage = new RequestMessage(request);
         SignalServiceSyncMessage message = SignalServiceSyncMessage.forRequest(requestMessage);
         sender.sendMessage(message, Optional.absent());
+    }
+    
+    public void sendMessage(String uuid, String text) {
+        ensureConnected();
+        Contact target = contacts.stream().filter(c -> uuid.equals(c.getUuid())).findFirst().get();
+
+        Optional<SignalServiceAddress> add = SignalServiceAddress.fromRaw(uuid, target.getNr());
+        SignalServiceDataMessage message = SignalServiceDataMessage.newBuilder().withBody(text).build();
+        try {
+            sender.sendMessage(add.get(), Optional.absent(), message);
+        } catch (UntrustedIdentityException ex) {
+            Logger.getLogger(WaveManager.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IOException ex) {
+            Logger.getLogger(WaveManager.class.getName()).log(Level.SEVERE, null, ex);
+        }
+
     }
 
     static Path getCredentialsPath() {
@@ -298,6 +345,10 @@ public class WaveManager {
                                 SignalServiceSyncMessage sssm = content.getSyncMessage().get();
                                 processSyncMessage(sssm);
                             }
+                            if (content.getDataMessage().isPresent()) {
+                                SignalServiceDataMessage ssdm = content.getDataMessage().get();
+                                processDataMessage(content.getSender(), ssdm);
+                            }
                         }
                     } catch (Exception ex) {
                         ex.printStackTrace();
@@ -323,6 +374,16 @@ public class WaveManager {
             ContactsMessage msg = sssm.getContacts().get();
             processContactsMessage(msg);
         }
+    }
+    
+    void processDataMessage(SignalServiceAddress ssa, SignalServiceDataMessage ssdm) {
+        System.err.println("Process datamessage");
+        if (this.messageListener != null) {
+            String uuid = ssa.getUuid().get().toString();
+            String content = ssdm.getBody().get();
+            this.messageListener.gotMessage(uuid, content);
+        }
+        
     }
     
     private void processContactsMessage(ContactsMessage msg) throws IOException {
@@ -407,6 +468,8 @@ public class WaveManager {
         String password = lines.get(2);
         int deviceId = Integer.parseInt(lines.get(3));
         this.signalProtocolStore.setDeviceId(deviceId);
+        this.signalProtocolStore.setMyUuid(uuidString);
+
         this.credentialsProvider = new StaticCredentialsProvider(uuid,
                 number, password, "signalingkey", deviceId);
         this.signalServiceAddress = new SignalServiceAddress(uuid, number);

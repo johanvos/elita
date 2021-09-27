@@ -31,6 +31,7 @@ public class SignalProtocolStoreImpl implements SignalServiceProtocolStore {
     private int localRegistrationId;
     
     private int deviceId;
+    private String myUuid = "nobody";
 
     public SignalProtocolStoreImpl() {}
     
@@ -42,6 +43,10 @@ public class SignalProtocolStoreImpl implements SignalServiceProtocolStore {
     
     public void setIdentityKeyPair(IdentityKeyPair ikp) {
         this.identityKeyPair = ikp;
+    }
+    
+    public void setMyUuid(String v) {
+        this.myUuid = v;
     }
     
     @Override
@@ -134,8 +139,10 @@ public class SignalProtocolStoreImpl implements SignalServiceProtocolStore {
   public synchronized SessionRecord loadSession(SignalProtocolAddress remoteAddress) {
     try {
       if (containsSession(remoteAddress)) {
+          System.err.println("Load session for "+remoteAddress);
         return new SessionRecord(sessions.get(remoteAddress));
       } else {
+          System.err.println("Load session for "+remoteAddress+" will create a new one");
         return new SessionRecord();
       }
     } catch (IOException e) {
@@ -148,7 +155,8 @@ public class SignalProtocolStoreImpl implements SignalServiceProtocolStore {
     List<Integer> deviceIds = new LinkedList<>();
 
     for (SignalProtocolAddress key : sessions.keySet()) {
-      if (key.getName().equals(name) && key.getDeviceId() != deviceId) {
+      if (key.getName().equals(name) && 
+              !((key.getName().equals(myUuid)) && (key.getDeviceId() == deviceId))) {
         deviceIds.add(key.getDeviceId());
       } else {
           System.err.println("[getSubDeviceSessions] ignore "+key.getName()+" with id "+key.getDeviceId());
@@ -158,12 +166,12 @@ public class SignalProtocolStoreImpl implements SignalServiceProtocolStore {
     return deviceIds;
   }
   
-  @Override
-  public synchronized void storeSession(SignalProtocolAddress address, SessionRecord record) {
-      Thread.dumpStack();
-      System.err.println("[storeSession] with address "+address.getName()+" and id "+address.getDeviceId());
-    sessions.put(address, record.serialize());
-  }
+    @Override
+    public synchronized void storeSession(SignalProtocolAddress address, SessionRecord record) {
+      //Thread.dumpStack();
+        System.err.println("[storeSession] with address "+address.getName()+" and id "+address.getDeviceId());
+        sessions.put(address, record.serialize());
+    }
 
   @Override
   public synchronized boolean containsSession(SignalProtocolAddress address) {

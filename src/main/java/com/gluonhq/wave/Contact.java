@@ -1,5 +1,5 @@
 
-package com.gluonhq.elita.model;
+package com.gluonhq.wave;
 
 /**
  *
