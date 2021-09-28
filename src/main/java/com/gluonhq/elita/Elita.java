@@ -46,7 +46,7 @@ public class Elita extends Application  implements ProvisioningClient {
     private Client client;
     private final static SignalProtocolStoreImpl signalProtocolStore = new SignalProtocolStoreImpl();
     private String number;
-    private final WaveManager waveManager = new WaveManager();
+    private final WaveManager waveManager = WaveManager.getInstance();
 
     @Override
     public void start(Stage primaryStage) throws Exception {

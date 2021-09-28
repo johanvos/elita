@@ -27,6 +27,8 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javafx.beans.InvalidationListener;
+import javafx.beans.Observable;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import okhttp3.Interceptor;
@@ -109,11 +111,17 @@ public class WaveManager {
         dir.mkdirs();
     }
     private MessagingClient messageListener;
-    
-    public WaveManager() {
+    private static WaveManager INSTANCE = new WaveManager();
+    private WaveManager() {
         signalServiceConfiguration = createConfiguration();
         signalProtocolStore = new SignalProtocolStoreImpl();
         lock = new LockImpl();
+        contacts.addListener(new InvalidationListener() {
+            @Override
+            public void invalidated(Observable o) {
+                System.err.println("WAVEMANAGER, contacts invalidated! "+ contacts.toString());
+            }
+        });
         try {
             restoreCredentialsProvider();
             retrieveIdentityKeyPair();
@@ -122,6 +130,10 @@ public class WaveManager {
         } catch (InvalidKeyException ex) {
             Logger.getLogger(WaveManager.class.getName()).log(Level.SEVERE, null, ex);
         }
+    }
+    
+    public static WaveManager getInstance() {
+        return INSTANCE;
     }
 
     public void initalize() {
@@ -149,10 +161,13 @@ public class WaveManager {
     }
 
     // CONTACTS
-    private ObservableList<Contact> contacts = FXCollections.observableArrayList();
+    private final ObservableList<Contact> contacts = FXCollections.observableArrayList();
     private boolean contactStorageDirty = true;
 
     public ObservableList<Contact> getContacts() {
+        System.err.println("getContacts asked, csd = "+contactStorageDirty+
+                " and current size = "+contacts.size()+" and contacts = "+
+                System.identityHashCode(contacts)+" and wave = "+System.identityHashCode(this));
         if (contactStorageDirty) {
             try {
                 contacts.clear(); // TODO make this smarter
@@ -162,6 +177,7 @@ public class WaveManager {
                 ex.printStackTrace();
             }
         }
+        System.err.println("getContacts, size = "+contacts.size()+", return object "+System.identityHashCode(contacts));
         return contacts;
     }
     
@@ -189,6 +205,7 @@ public class WaveManager {
         }
         Files.write(path, lines);
         contactStorageDirty = true;
+        getContacts();
     }
 
     public void syncContacts() throws IOException, UntrustedIdentityException, InvalidKeyException {
