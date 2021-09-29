@@ -112,6 +112,7 @@ public class WaveManager {
     }
     private MessagingClient messageListener;
     private static WaveManager INSTANCE = new WaveManager();
+    
     private WaveManager() {
         signalServiceConfiguration = createConfiguration();
         signalProtocolStore = new SignalProtocolStoreImpl();
@@ -205,7 +206,7 @@ public class WaveManager {
         }
         Files.write(path, lines);
         contactStorageDirty = true;
-        getContacts();
+      //  getContacts();
     }
 
     public void syncContacts() throws IOException, UntrustedIdentityException, InvalidKeyException {
