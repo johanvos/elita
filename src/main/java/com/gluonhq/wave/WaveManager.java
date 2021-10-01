@@ -188,8 +188,10 @@ public class WaveManager {
         Path path = dir.toPath().resolve("contacts");
         List<String> lines = Files.readAllLines(path);
         List<Contact> answer = new LinkedList<>();
-        for (int i = 0; i < lines.size(); i = i + 3) {
+        for (int i = 0; i < lines.size(); i = i + 4) {
             Contact c = new Contact(lines.get(i), lines.get(i+1), lines.get(i+2));
+            String avt = lines.get(i+3);
+            c.setAvatarPath(avt);
             answer.add(c);
         }
         return answer;
@@ -203,6 +205,7 @@ public class WaveManager {
             lines.add(contact.getName());
             lines.add(contact.getUuid());
             lines.add(contact.getNr());
+            lines.add(contact.getAvatarPath());
         }
         Files.write(path, lines);
         contactStorageDirty = true;
@@ -427,6 +430,9 @@ public class WaveManager {
             while (dc != null) {
                 System.err.println("Got contact: " + dc.getName() + ", uuid = " + dc.getAddress().getUuid()
                         + ", nr = " + dc.getAddress().getNumber());
+                Contact contact = new Contact(dc.getName().or("anonymous"),
+                        dc.getAddress().getUuid().get().toString(),
+                        dc.getAddress().getNumber().or("123"));
                 if (dc.getAvatar().isPresent()) {
                     SignalServiceAttachmentStream ssas = dc.getAvatar().get();
                     long length = ssas.getLength();
@@ -434,12 +440,12 @@ public class WaveManager {
                     byte[] b = new byte[(int) length];
                     inputStream.read(b);
                     String nr = dc.getAddress().getNumber().get();
-                    File img = new File("/tmp/" + nr);
-                    com.google.common.io.Files.write(b, img);
+                    File dir = new File(SIGNAL_FX);
+                    Path avatarPath = dir.toPath().resolve("contact-avatar"+nr);
+                    Files.write(avatarPath, b, StandardOpenOption.CREATE);
+                    contact.setAvatarPath(avatarPath.toAbsolutePath().toString());
                 }
-                Contact contact = new Contact(dc.getName().or("anonymous"),
-                        dc.getAddress().getUuid().get().toString(),
-                        dc.getAddress().getNumber().or("123"));
+
                 contacts.add(contact);
                 System.err.println("Available? " + ois.available());
                 if (ois.available() == 0) {
