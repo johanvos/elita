@@ -20,5 +20,7 @@ module com.gluonhq.wave {
     requires com.google.zxing;
     requires okhttp3;
 
+    exports com.gluonhq.wave;
     exports com.gluonhq.wave.message;
+    exports com.gluonhq.wave.provisioning;
 }

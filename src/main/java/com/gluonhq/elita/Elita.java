@@ -1,5 +1,6 @@
 package com.gluonhq.elita;
 
+import com.gluonhq.wave.QRGenerator;
 import com.gluonhq.wave.WaveManager;
 import com.gluonhq.wave.provisioning.ProvisioningManager;
 import com.gluonhq.wave.provisioning.ProvisioningClient;

@@ -178,7 +178,6 @@ public class WaveManager {
                 ex.printStackTrace();
             }
         }
-        System.err.println("getContacts, size = "+contacts.size()+", return object "+System.identityHashCode(contacts));
         return contacts;
     }
     
@@ -215,6 +214,7 @@ public class WaveManager {
     public void syncContacts() throws IOException, UntrustedIdentityException, InvalidKeyException {
         ensureConnected();
         System.err.println("SYNC CONTACTS");
+        Thread.dumpStack();
         SignalServiceProtos.SyncMessage.Request request = SignalServiceProtos.SyncMessage.Request.newBuilder().setType(SignalServiceProtos.SyncMessage.Request.Type.CONTACTS).build();
         RequestMessage requestMessage = new RequestMessage(request);
         SignalServiceSyncMessage message = SignalServiceSyncMessage.forRequest(requestMessage);

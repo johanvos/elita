@@ -1,4 +1,4 @@
-package com.gluonhq.elita;
+package com.gluonhq.wave;
 
 // taken from http://java-buddy.blogspot.com/2015/01/qrcode-generator-on-javafx-using-zxing.html
 
