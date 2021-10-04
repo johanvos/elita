@@ -441,7 +441,9 @@ public class WaveManager {
                     inputStream.read(b);
                     String nr = dc.getAddress().getNumber().get();
                     File dir = new File(SIGNAL_FX);
-                    Path avatarPath = dir.toPath().resolve("contact-avatar"+nr);
+                    Path contacts = dir.toPath().resolve("contacts");
+                    Files.createDirectories(contacts);
+                    Path avatarPath = contacts.resolve("contact-avatar"+nr);
                     Files.write(avatarPath, b, StandardOpenOption.CREATE);
                     contact.setAvatarPath(avatarPath.toAbsolutePath().toString());
                 }
