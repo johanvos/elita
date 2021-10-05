@@ -49,7 +49,6 @@ import org.whispersystems.libsignal.state.PreKeyBundle;
 import org.whispersystems.libsignal.state.PreKeyRecord;
 import org.whispersystems.libsignal.state.SignalProtocolStore;
 import org.whispersystems.libsignal.state.SignedPreKeyRecord;
-import org.whispersystems.libsignal.util.guava.Optional;
 import org.whispersystems.signalservice.api.SignalServiceMessagePipe;
 import org.whispersystems.signalservice.api.SignalServiceMessageReceiver;
 import org.whispersystems.signalservice.api.SignalServiceMessageSender;
@@ -94,6 +93,8 @@ import org.whispersystems.signalservice.internal.push.SignalServiceProtos.SyncMe
 import org.whispersystems.signalservice.internal.util.JsonUtil;
 import org.whispersystems.signalservice.internal.util.StaticCredentialsProvider;
 import org.whispersystems.signalservice.internal.util.Util;
+
+import java.util.Optional;
 
 //import static org.whispersystems.signalservice.internal.push.ProvisioningProtos.*;
 import signalservice.DeviceMessages.*;
@@ -303,7 +304,7 @@ try {
                 = new SignalServiceMessageSender(credentialsProvider, store, lock);
         //  sender.sendMessage(message, org.whispersystems.libsignal.util.guava.Optional.absent());
 
-        OutgoingPushMessageList messages = sender.createMessageBundle(message, org.whispersystems.libsignal.util.guava.Optional.absent());
+        OutgoingPushMessageList messages = sender.createMessageBundle(message, Optional.empty());
         String destination = messages.getDestination();
         System.err.println("dest = " + destination);
         webApi.fetch(String.format(MESSAGE_PATH, messages.getDestination()), "PUT", JsonUtil.toJson(messages));
@@ -317,7 +318,7 @@ try {
         RequestMessage requestMessage = new RequestMessage(request);
         SignalServiceSyncMessage message = SignalServiceSyncMessage.forRequest(requestMessage);
     //    SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsProvider, store, lock);
-sender.sendMessage(message, Optional.absent());
+sender.sendMessage(message, Optional.empty());
 //        OutgoingPushMessageList messages = sender.createMessageBundle(message, org.whispersystems.libsignal.util.guava.Optional.absent());
 //        String destination = messages.getDestination();
 //        System.err.println("CONTACTdest = " + destination);
@@ -334,7 +335,7 @@ sender.sendMessage(message, Optional.absent());
         SignalServiceSyncMessage message = SignalServiceSyncMessage.forRequest(requestMessage);
         SignalServiceMessageSender sender = new SignalServiceMessageSender(credentialsProvider, store, lock);
 
-        OutgoingPushMessageList messages = sender.createMessageBundle(message, org.whispersystems.libsignal.util.guava.Optional.absent());
+        OutgoingPushMessageList messages = sender.createMessageBundle(message, Optional.empty());
         String destination = messages.getDestination();
         System.err.println("GROUPDEST = " + destination);
         webApi.fetch(String.format(MESSAGE_PATH, messages.getDestination()), "PUT", JsonUtil.toJson(messages));
@@ -393,7 +394,7 @@ ObjectMapper mapper = new ObjectMapper();
                 urls, cdnMap,
                 new SignalContactDiscoveryUrl[]{new SignalContactDiscoveryUrl("https://api.directory.signal.org", trustStore)},
                 backup, storageUrl, interceptors,
-                Optional.absent(), Optional.absent(), null
+                Optional.empty(), Optional.empty(), null
         );
         return answer;
     }
@@ -459,7 +460,7 @@ ObjectMapper mapper = new ObjectMapper();
                 true,
                 Optional.of(messagePipe),
                 Optional.of(unidentifiedMessagePipe),
-                Optional.absent(),
+                Optional.empty(),
                 null,
                 executorService,
                 512 * 1024,
@@ -486,14 +487,14 @@ ObjectMapper mapper = new ObjectMapper();
         Request request = Request.newBuilder().setType(Request.Type.KEYS).build();
         RequestMessage requestMessage = new RequestMessage(request);
         SignalServiceSyncMessage message = SignalServiceSyncMessage.forRequest(requestMessage);      
-        sender.sendMessage(message, org.whispersystems.libsignal.util.guava.Optional.absent());
+        sender.sendMessage(message, Optional.empty());
     }
         private void differentsendRequestContactSyncMessage() throws IOException, UntrustedIdentityException, InvalidKeyException {
 
             Request request = Request.newBuilder().setType(Request.Type.CONTACTS).build();
         RequestMessage requestMessage = new RequestMessage(request);
         SignalServiceSyncMessage message = SignalServiceSyncMessage.forRequest(requestMessage);
-            sender.sendMessage(message, org.whispersystems.libsignal.util.guava.Optional.absent());
+            sender.sendMessage(message, Optional.empty());
 
         }
     void processSyncMessage(SignalServiceSyncMessage sssm) throws InvalidMessageException {
@@ -508,7 +509,7 @@ ObjectMapper mapper = new ObjectMapper();
             File output = new File("/tmp/" + path);
             try {
                 Files.write(output.toPath(), bytes);
-                InputStream is = AttachmentCipherInputStream.createForAttachment(output.getAbsoluteFile(), pointer.getSize().or(0), pointer.getKey(), pointer.getDigest().get());
+                InputStream is = AttachmentCipherInputStream.createForAttachment(output.getAbsoluteFile(), pointer.getSize().orElse(0), pointer.getKey(), pointer.getDigest().get());
                 Files.copy(is, new File("/tmp/myin").toPath(), StandardCopyOption.REPLACE_EXISTING);
                 readContacts();
                 fakesend();
@@ -563,8 +564,10 @@ ObjectMapper mapper = new ObjectMapper();
         Optional<SignalServiceAddress> add = SignalServiceAddress.fromRaw(k, nr);
         SignalServiceDataMessage message = SignalServiceDataMessage.newBuilder().withBody("Elita test").build();
         try {
-            sender.sendMessage(add.get(), Optional.absent(), message);
-        } catch (UntrustedIdentityException | IOException ex) {
+            sender.sendMessage(add.get(), Optional.empty(), message);
+        } catch (IOException ex) {
+            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (UntrustedIdentityException ex) {
             Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
         }
     }

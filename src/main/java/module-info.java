@@ -12,9 +12,11 @@ module com.gluonhq.wave {
     requires org.eclipse.jetty.websocket.api;
     requires org.eclipse.jetty.websocket.client;
     requires websocket.resources;
-    requires signal.metadata.java;
-    requires signal.protocol.java;
-    requires signal.service.java;
+    // requires signal.metadata.java;
+    // requires signal.service.java;
+    requires org.whispersystems.metadata;
+    requires org.whispersystems.protocol;
+    requires org.whispersystems.service;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;
     requires com.google.zxing;

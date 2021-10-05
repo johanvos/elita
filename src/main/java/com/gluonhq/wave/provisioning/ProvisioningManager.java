@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import okhttp3.Response;
 import org.eclipse.jetty.util.log.Log;
@@ -27,7 +28,6 @@ import org.eclipse.jetty.util.log.StdErrLog;
 import org.whispersystems.libsignal.IdentityKeyPair;
 import org.whispersystems.libsignal.state.PreKeyRecord;
 import org.whispersystems.libsignal.state.SignedPreKeyRecord;
-import org.whispersystems.libsignal.util.guava.Optional;
 import org.whispersystems.signalservice.api.push.TrustStore;
 import org.whispersystems.signalservice.api.util.CredentialsProvider;
 import org.whispersystems.signalservice.api.util.SleepTimer;
@@ -88,8 +88,8 @@ public class ProvisioningManager {
         ConnectivityListener connectivityListener = new ProvisioningConnectivityListener("prov");
         SleepTimer sleepTimer = m -> Thread.sleep(m);
         provisioningWebSocket = new WebSocketConnection(dest, "provisioning/", trustStore,
-                Optional.absent(), USER_AGENT, connectivityListener, sleepTimer,
-                new LinkedList(), Optional.absent(), Optional.absent());
+                Optional.empty(), USER_AGENT, connectivityListener, sleepTimer,
+                new LinkedList(), Optional.empty(), Optional.empty());
         provisioningWebSocket.connect();
         this.listen = true;
         try {
@@ -250,6 +250,7 @@ public class ProvisioningManager {
         IdentityKeyPair identityKeypair = waveManager.getSignalProtocolStore().getIdentityKeyPair();
         SignedPreKeyRecord signedPreKey = KeyUtil.generateSignedPreKey(identityKeypair, true);
         List<PreKeyRecord> records = KeyUtil.generatePreKeys(100);
+        System.err.println("GARK, ik = "+ identityKeypair+" with pubkey = "+identityKeypair.getPublicKey()+" and spk = "+signedPreKey+" and records = "+records);
         String response = accountSocket.registerPreKeys(identityKeypair.getPublicKey(), signedPreKey, records);
         System.err.println("Response for generateAndRegisterKeys = "+response);
     }

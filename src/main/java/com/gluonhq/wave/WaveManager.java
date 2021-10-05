@@ -3,7 +3,6 @@ package com.gluonhq.wave;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.gluonhq.elita.LockImpl;
 import com.gluonhq.elita.SignalProtocolStoreImpl;
-// import static com.gluonhq.elita.SocketManager.getCertificateValidator;
 import com.gluonhq.elita.TrustStoreImpl;
 import com.gluonhq.wave.message.MessagingClient;
 import com.gluonhq.wave.provisioning.ProvisioningClient;
@@ -21,6 +20,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -43,7 +43,6 @@ import org.whispersystems.libsignal.ecc.Curve;
 import org.whispersystems.libsignal.ecc.ECKeyPair;
 import org.whispersystems.libsignal.ecc.ECPrivateKey;
 import org.whispersystems.libsignal.ecc.ECPublicKey;
-import org.whispersystems.libsignal.util.guava.Optional;
 import org.whispersystems.signalservice.api.SignalServiceMessagePipe;
 import org.whispersystems.signalservice.api.SignalServiceMessageReceiver;
 import org.whispersystems.signalservice.api.SignalServiceMessageSender;
@@ -103,13 +102,23 @@ public class WaveManager {
     private boolean connected;
     
     private final static String SIGNAL_FX;
+    private final static File SIGNAL_FX_DIR;
+    public final static File SIGNAL_FX_CONTACTS_DIR;
 
     static {
         SIGNAL_FX = System.getProperty("user.home")
                 + File.separator + ".signalfx";
-        File dir = new File(SIGNAL_FX);
-        dir.mkdirs();
+        SIGNAL_FX_DIR = new File(SIGNAL_FX);
+        SIGNAL_FX_DIR.mkdirs();
+        Path contacts = SIGNAL_FX_DIR.toPath().resolve("contacts/");
+        SIGNAL_FX_CONTACTS_DIR = contacts.toFile();
+        try {
+            Files.createDirectories(contacts);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
     }
+
     private MessagingClient messageListener;
     private static WaveManager INSTANCE = new WaveManager();
     
@@ -183,8 +192,7 @@ public class WaveManager {
     
     // read contacts from file
     private List<Contact> readContacts() throws IOException {
-        File dir = new File(SIGNAL_FX);
-        Path path = dir.toPath().resolve("contacts");
+        Path path = SIGNAL_FX_CONTACTS_DIR.toPath().resolve("contactlist");
         List<String> lines = Files.readAllLines(path);
         List<Contact> answer = new LinkedList<>();
         for (int i = 0; i < lines.size(); i = i + 4) {
@@ -197,8 +205,7 @@ public class WaveManager {
     }
     
     private void storeContacts() throws IOException {
-        File dir = new File(SIGNAL_FX);
-        Path path = dir.toPath().resolve("contacts");
+        Path path = SIGNAL_FX_CONTACTS_DIR.toPath().resolve("contactlist");
         List<String> lines = new LinkedList<String>();
         for (Contact contact : contacts) {
             lines.add(contact.getName());
@@ -218,7 +225,7 @@ public class WaveManager {
         SignalServiceProtos.SyncMessage.Request request = SignalServiceProtos.SyncMessage.Request.newBuilder().setType(SignalServiceProtos.SyncMessage.Request.Type.CONTACTS).build();
         RequestMessage requestMessage = new RequestMessage(request);
         SignalServiceSyncMessage message = SignalServiceSyncMessage.forRequest(requestMessage);
-        sender.sendMessage(message, Optional.absent());
+        sender.sendMessage(message, Optional.empty());
     }
     
     public void sendMessage(String uuid, String text) {
@@ -228,7 +235,7 @@ public class WaveManager {
         Optional<SignalServiceAddress> add = SignalServiceAddress.fromRaw(uuid, target.getNr());
         SignalServiceDataMessage message = SignalServiceDataMessage.newBuilder().withBody(text).build();
         try {
-            sender.sendMessage(add.get(), Optional.absent(), message);
+            sender.sendMessage(add.get(), Optional.empty(), message);
         } catch (UntrustedIdentityException ex) {
             Logger.getLogger(WaveManager.class.getName()).log(Level.SEVERE, null, ex);
         } catch (IOException ex) {
@@ -340,7 +347,7 @@ public class WaveManager {
                 true,
                 Optional.of(messagePipe),
                 Optional.of(unidentifiedMessagePipe),
-                Optional.absent(),
+                Optional.empty(),
                 null,
                 executorService,
                 512 * 1024,
@@ -403,7 +410,7 @@ public class WaveManager {
         if (this.messageListener != null) {
             String uuid = ssa.getUuid().get().toString();
             String content = ssdm.getBody().get();
-            this.messageListener.gotMessage(uuid, content);
+            this.messageListener.gotMessage(uuid, content, ssdm.getTimestamp());
         }
         
     }
@@ -417,7 +424,7 @@ public class WaveManager {
         Path output = Files.createTempFile("pre", "post");
         Files.write(output, response.getContent());
         try {
-            InputStream ais = AttachmentCipherInputStream.createForAttachment(output.toFile(), pointer.getSize().or(0), pointer.getKey(), pointer.getDigest().get());
+            InputStream ais = AttachmentCipherInputStream.createForAttachment(output.toFile(), pointer.getSize().orElse(0), pointer.getKey(), pointer.getDigest().get());
             Path attPath = Files.createTempFile("att", "bin");
             File attFile = attPath.toFile();
             Files.copy(ais, attPath, StandardCopyOption.REPLACE_EXISTING);
@@ -430,9 +437,9 @@ public class WaveManager {
             while (dc != null) {
                 System.err.println("Got contact: " + dc.getName() + ", uuid = " + dc.getAddress().getUuid()
                         + ", nr = " + dc.getAddress().getNumber());
-                Contact contact = new Contact(dc.getName().or("anonymous"),
+                Contact contact = new Contact(dc.getName().orElse("anonymous"),
                         dc.getAddress().getUuid().get().toString(),
-                        dc.getAddress().getNumber().or("123"));
+                        dc.getAddress().getNumber().orElse("123"));
                 if (dc.getAvatar().isPresent()) {
                     SignalServiceAttachmentStream ssas = dc.getAvatar().get();
                     long length = ssas.getLength();
@@ -440,9 +447,7 @@ public class WaveManager {
                     byte[] b = new byte[(int) length];
                     inputStream.read(b);
                     String nr = dc.getAddress().getNumber().get();
-                    File dir = new File(SIGNAL_FX);
-                    Path contacts = dir.toPath().resolve("contacts");
-                    Files.createDirectories(contacts);
+Path contacts = SIGNAL_FX_CONTACTS_DIR.toPath();
                     Path avatarPath = contacts.resolve("contact-avatar"+nr);
                     Files.write(avatarPath, b, StandardOpenOption.CREATE);
                     contact.setAvatarPath(avatarPath.toAbsolutePath().toString());
@@ -480,7 +485,7 @@ public class WaveManager {
                 urls, cdnMap,
                 new SignalContactDiscoveryUrl[]{new SignalContactDiscoveryUrl("https://api.directory.signal.org", trustStore)},
                 backup, storageUrl, interceptors,
-                Optional.absent(), Optional.absent(), null
+                Optional.empty(), Optional.empty(), null
         );
         return answer;
     }

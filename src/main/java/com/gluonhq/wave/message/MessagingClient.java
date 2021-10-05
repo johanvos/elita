@@ -11,6 +11,6 @@ package com.gluonhq.wave.message;
  */
 public interface MessagingClient {
     
-    void gotMessage(String senderUuid, String content);
+    void gotMessage(String senderUuid, String content, long timestamp);
     
 }
