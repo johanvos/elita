@@ -5,6 +5,9 @@
  */
 package com.gluonhq.elita;
 
+public class SocketManager {
+}
+/*
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import java.io.IOException;
@@ -51,7 +54,7 @@ import org.whispersystems.websocket.messages.WebSocketResponseMessage;
 /**
  *
  * @author johan
- */
+
 public class SocketManager {
 
     static final String SERVER_NAME = "textsecure-service.whispersystems.org";
@@ -231,7 +234,7 @@ public class SocketManager {
      * @param body
      * @param ba
      * @return 
-     */
+   
     public ContentResponse httpRequest (String method, String path, String body, String ba) {
         return httpRequest(this.url, method, path, body, ba);
     }
@@ -339,7 +342,7 @@ System.err.println("create request to "+url);
          * When a response is received, the registered function for the corresponding
          * request will be invoked synchronously.
          * @param responseMessage 
-         */
+
         @Override
         public void onReceivedResponse(WebSocketResponseMessage responseMessage) {
             System.err.println("[JVDBG] Got response with status " + responseMessage.getStatus()+
@@ -373,3 +376,4 @@ System.err.println("create request to "+url);
     }
 
 }
+*/

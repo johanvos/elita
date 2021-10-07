@@ -1,4 +1,7 @@
 package com.gluonhq.elita;
+public class WebSocketInterface {
+}
+/*
 
 import com.google.common.primitives.Bytes;
 import org.eclipse.jetty.websocket.api.Session;
@@ -65,7 +68,7 @@ public class WebSocketInterface {
      * A value of `0` will use the default value, a negative value will wait forever
      * @throws java.lang.InterruptedException in case we are interrupted before 
      * connection happens or timeout expires.
-     */
+     *
     public void waitUntilConnected(int s) throws InterruptedException {
         if (s < 0) {
             this.latch.await();
@@ -122,3 +125,4 @@ public class WebSocketInterface {
         public void onConnected();
     }
 }
+*/

@@ -8,18 +8,19 @@ package com.gluonhq.wave;
 import com.gluonhq.elita.SocketManager;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.eclipse.jetty.client.HttpClient;
-import org.eclipse.jetty.client.api.ContentResponse;
-import org.eclipse.jetty.client.api.Request;
-import org.eclipse.jetty.client.util.StringContentProvider;
-import org.eclipse.jetty.http.HttpHeader;
-import org.eclipse.jetty.util.ssl.SslContextFactory;
+//import org.eclipse.jetty.client.HttpClient;
+//import org.eclipse.jetty.client.api.ContentResponse;
+//import org.eclipse.jetty.client.api.Request;
+//import org.eclipse.jetty.client.util.StringContentProvider;
+//import org.eclipse.jetty.http.HttpHeader;
+//import org.eclipse.jetty.util.ssl.SslContextFactory;
 
 /**
  *
  * @author johan
  */
-public class Networking {
+public class Networking {}
+/*
     
     static final String AGENT="Signal-Desktop/5.14.0 Linux";
 
@@ -65,3 +66,4 @@ System.err.println("create request to "+url);
     }
 
 }
+*/

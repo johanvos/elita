@@ -36,7 +36,7 @@ import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
 import okhttp3.Interceptor;
 import okhttp3.Response;
-import org.eclipse.jetty.client.api.ContentResponse;
+//import org.eclipse.jetty.client.api.ContentResponse;
 import org.signal.libsignal.metadata.certificate.CertificateValidator;
 import org.signal.libsignal.metadata.ProtocolNoSessionException;
 
@@ -95,7 +95,7 @@ public class WaveManager {
     static final String SIGNAL_KEY_BACKUP_URL = "https://api.backup.signal.org";
     static final String SIGNAL_STORAGE_URL = "https://storage.signal.org";
     static final String UNIDENTIFIED_SENDER_TRUST_ROOT = "BXu6QIKVz5MA8gstzfOgRQGqyLqOwNKHL6INkv3IHWMF";
-
+    long MAX_FILE_STORAGE = 1024 * 1024 * 4;
     static final TrustStore trustStore = new TrustStoreImpl();
     final SignalServiceConfiguration signalServiceConfiguration;
 
@@ -565,11 +565,22 @@ public class WaveManager {
     private void processContactsMessage(ContactsMessage msg) throws IOException {
         SignalServiceAttachment att = msg.getContactsStream();
         SignalServiceAttachmentPointer pointer = att.asPointer();
-        int cdnNumber = pointer.getCdnNumber();
-        String path = new String(pointer.getRemoteId().getV3().get());
-        ContentResponse response = Networking.httpRequest("https://cdn2.signal.org", "GET", "/attachments/" + path, null, null);
         Path output = Files.createTempFile("pre", "post");
-        Files.write(output, response.getContent());
+
+        try {
+            receiver.retrieveAttachment(pointer, output.toFile(), MAX_FILE_STORAGE);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            throw new IOException("Can't retrieve attachment", ex);
+        }
+//        
+//        int cdnNumber = pointer.getCdnNumber();
+//        String path = new String(pointer.getRemoteId().getV3().get());
+//        ContentResponse response = Networking.httpRequest("https://cdn2.signal.org", "GET", "/attachments/" + path, null, null);
+//        Path output = Files.createTempFile("pre", "post");
+//        Files.write(output, response.getContent());
+//        
+        
         try {
             InputStream ais = AttachmentCipherInputStream.createForAttachment(output.toFile(), pointer.getSize().orElse(0), pointer.getKey(), pointer.getDigest().get());
             Path attPath = Files.createTempFile("att", "bin");

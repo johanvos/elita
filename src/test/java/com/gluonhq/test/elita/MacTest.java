@@ -11,10 +11,10 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 import org.whispersystems.libsignal.ecc.Curve;
 import org.whispersystems.libsignal.ecc.ECKeyPair;
-import org.whispersystems.websocket.messages.InvalidMessageException;
-import org.whispersystems.websocket.messages.WebSocketMessage;
-import org.whispersystems.websocket.messages.WebSocketMessageFactory;
-import org.whispersystems.websocket.messages.protobuf.ProtobufWebSocketMessageFactory;
+//import org.whispersystems.websocket.messages.InvalidMessageException;
+//import org.whispersystems.websocket.messages.WebSocketMessage;
+//import org.whispersystems.websocket.messages.WebSocketMessageFactory;
+//import org.whispersystems.websocket.messages.protobuf.ProtobufWebSocketMessageFactory;
 
 /**
  *
@@ -45,12 +45,12 @@ public class MacTest {
             115, 107, 116, 111, 112, 47, 53, 46, 49, 52, 46, 48, 32, 76, 105, 110, 117, 120, 42,
             18, 120, 45, 115, 105, 103, 110, 97, 108, 45, 97, 103, 101, 110, 116, 58, 79, 87, 68};
 
-        WebSocketMessageFactory factory = new ProtobufWebSocketMessageFactory();
-        try {
-            WebSocketMessage parseMessage = factory.parseMessage(in, 0, in.length);
-            System.err.println("PM = " + parseMessage);
-        } catch (InvalidMessageException ex) {
-            Logger.getLogger(MacTest.class.getName()).log(Level.SEVERE, null, ex);
-        }
+//        WebSocketMessageFactory factory = new ProtobufWebSocketMessageFactory();
+//        try {
+//            WebSocketMessage parseMessage = factory.parseMessage(in, 0, in.length);
+//            System.err.println("PM = " + parseMessage);
+//        } catch (InvalidMessageException ex) {
+//            Logger.getLogger(MacTest.class.getName()).log(Level.SEVERE, null, ex);
+//        }
     }
 }

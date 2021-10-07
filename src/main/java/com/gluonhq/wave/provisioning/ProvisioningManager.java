@@ -25,8 +25,6 @@ import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import okhttp3.Response;
-import org.eclipse.jetty.util.log.Log;
-import org.eclipse.jetty.util.log.StdErrLog;
 import org.whispersystems.libsignal.IdentityKeyPair;
 import org.whispersystems.libsignal.InvalidKeyException;
 import org.whispersystems.libsignal.state.PreKeyRecord;
@@ -82,9 +80,6 @@ public class ProvisioningManager {
         this.waveManager = wave;
         this.trustStore = new TrustStoreImpl();
         this.provisioningCipher = new ProvisioningCipher(waveManager);
-        StdErrLog logger = new StdErrLog();
-        logger.setLevel(StdErrLog.LEVEL_INFO);        
-        Log.setLog(logger);
     }
 
     public void start() {

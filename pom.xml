@@ -13,11 +13,6 @@
     </properties>
     <dependencies>
         <dependency>
-          <groupId>org.eclipse.jetty</groupId>
-          <artifactId>jetty-client</artifactId>
-          <version>9.4.22.v20191022</version>
-        </dependency>
-        <dependency>
           <groupId>org.bouncycastle</groupId>
           <artifactId>bcpkix-jdk15on</artifactId>
           <version>1.58</version>
@@ -26,11 +21,6 @@
           <groupId>org.whispersystems</groupId>
           <artifactId>signal-service-java</artifactId>
           <version>2.15.4-gluon-4-SNAPSHOT</version>
-        </dependency>
-        <dependency>
-          <groupId>org.whispersystems</groupId>
-          <artifactId>websocket-resources</artifactId>
-          <version>0.5.10-gluon</version>
         </dependency>
         <dependency>
             <groupId>org.openjfx</groupId>

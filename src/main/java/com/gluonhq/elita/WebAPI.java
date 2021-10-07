@@ -1,4 +1,6 @@
 package com.gluonhq.elita;
+public class WebAPI {}
+/*
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,7 +28,7 @@ import org.whispersystems.websocket.messages.WebSocketResponseMessage;
 /**
  *
  * @author johan
- */
+ *
 public class WebAPI {
     ObjectMapper rootMapper = new ObjectMapper();
 
@@ -82,7 +84,7 @@ public class WebAPI {
 
     /**
      * Creates a Authorization:Basic header in case we have a uuid
-     */
+     *
     Optional<String> createBasicAuthHeader() {
         if (uuid != null) {
             String authbase = uuid + "." + deviceId + ":" + pwd;
@@ -310,3 +312,4 @@ public class WebAPI {
     }
 
 }
+*/

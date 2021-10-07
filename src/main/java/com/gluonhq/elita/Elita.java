@@ -58,26 +58,26 @@ public class Elita extends Application  implements ProvisioningClient {
         primaryStage.setScene(scene);
         primaryStage.show();
         Button sendButton = new Button("Send msg");
-        sendButton.setOnAction(e -> {
-            try {
-                getClient().fakesend();
-            } catch (IOException ex) {
-                Logger.getLogger(Elita.class.getName()).log(Level.SEVERE, null, ex);
-            } catch (InvalidKeyException ex) {
-                Logger.getLogger(Elita.class.getName()).log(Level.SEVERE, null, ex);
-            }
-        });
+//        sendButton.setOnAction(e -> {
+//            try {
+//                getClient().fakesend();
+//            } catch (IOException ex) {
+//                Logger.getLogger(Elita.class.getName()).log(Level.SEVERE, null, ex);
+//            } catch (InvalidKeyException ex) {
+//                Logger.getLogger(Elita.class.getName()).log(Level.SEVERE, null, ex);
+//            }
+//        });
         bp.setCenter(root);
         bp.setBottom(sendButton);
         startClientFlow();
     }
     
-    public Client getClient() {
-        if (this.client == null) {
-            client = new Client(this);
-        }
-        return client;
-    }
+//    public Client getClient() {
+//        if (this.client == null) {
+//            client = new Client(this);
+//        }
+//        return client;
+//    }
 
     public static SignalProtocolStoreImpl getSignalProtocolStore() {
         return signalProtocolStore;

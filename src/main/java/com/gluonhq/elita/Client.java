@@ -1,14 +1,60 @@
 package com.gluonhq.elita;
 
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import okhttp3.Interceptor;
+import org.whispersystems.signalservice.internal.configuration.SignalCdnUrl;
+import org.whispersystems.signalservice.internal.configuration.SignalContactDiscoveryUrl;
+import org.whispersystems.signalservice.internal.configuration.SignalKeyBackupServiceUrl;
+import org.whispersystems.signalservice.internal.configuration.SignalServiceConfiguration;
+import org.whispersystems.signalservice.internal.configuration.SignalServiceUrl;
+import org.whispersystems.signalservice.internal.configuration.SignalStorageUrl;
+import org.whispersystems.signalservice.api.push.TrustStore;
+
+public class Client {
+
+    static final String SIGNAL_SERVICE_URL = "https://textsecure-service.whispersystems.org";
+    static final String SIGNAL_KEY_BACKUP_URL = "https://api.backup.signal.org";
+    static final String SIGNAL_STORAGE_URL = "https://storage.signal.org";
+    public static final String SIGNAL_USER_AGENT = "Signal-Desktop/5.14.0 Linux";
+
+    static final TrustStore trustStore = new TrustStoreImpl();
+
+    public static SignalServiceConfiguration createConfiguration() {
+        SignalServiceUrl[] urls = {
+            new SignalServiceUrl(SIGNAL_SERVICE_URL, trustStore)};
+        Map<Integer, SignalCdnUrl[]> cdnMap = new HashMap<>();
+        cdnMap.put(0, new SignalCdnUrl[]{new SignalCdnUrl("https://cdn.signal.org", trustStore)});
+        cdnMap.put(2, new SignalCdnUrl[]{new SignalCdnUrl("https://cdn2.signal.org", trustStore)});
+        SignalKeyBackupServiceUrl[] backup = new SignalKeyBackupServiceUrl[]{
+            new SignalKeyBackupServiceUrl(SIGNAL_KEY_BACKUP_URL, trustStore)};
+
+        SignalStorageUrl[] storageUrl = new SignalStorageUrl[]{
+            new SignalStorageUrl(SIGNAL_STORAGE_URL, trustStore)};
+        List<Interceptor> interceptors = new LinkedList<>();
+        SignalServiceConfiguration answer = new SignalServiceConfiguration(
+                urls, cdnMap,
+                new SignalContactDiscoveryUrl[]{new SignalContactDiscoveryUrl("https://api.directory.signal.org", trustStore)},
+                backup, storageUrl, interceptors,
+                Optional.empty(), Optional.empty(), null
+        );
+        return answer;
+    }
+}
+/*
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import static com.gluonhq.elita.SocketManager.getCertificateValidator;
+//import static com.gluonhq.elita.SocketManager.getCertificateValidator;
 import com.gluonhq.elita.crypto.KeyUtil;
 import com.gluonhq.elita.storage.User;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import org.eclipse.jetty.websocket.api.annotations.WebSocket;
+//import org.eclipse.jetty.websocket.api.annotations.WebSocket;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -99,13 +145,10 @@ import java.util.Optional;
 //import static org.whispersystems.signalservice.internal.push.ProvisioningProtos.*;
 import signalservice.DeviceMessages.*;
 
-@WebSocket(maxTextMessageSize = 64 * 1024)
+//@WebSocket(maxTextMessageSize = 64 * 1024)
 public class Client { // implements WebSocketInterface.Listener {
 
     public static final String SIGNAL_USER_AGENT = "Signal-Desktop/5.14.0 Linux";
-static final String SIGNAL_KEY_BACKUP_URL = "https://api.backup.signal.org";
-static final String SIGNAL_STORAGE_URL = "https://storage.signal.org";
-static final String SIGNAL_SERVICE_URL = "https://textsecure-service.whispersystems.org";
     static final String SERVER_NAME = "https://textsecure-service.whispersystems.org";
     static final String PREKEY_PATH = "/v2/keys/%s";
     private static final String MESSAGE_PATH = "/v1/messages/%s";
@@ -118,7 +161,7 @@ static final String SIGNAL_SERVICE_URL = "https://textsecure-service.whispersyst
     private final ProvisioningCipher provisioningCipher;
     private final SecureRandom sr;
     SocketManager socketManager;
-    final WebAPI webApi;
+//    final WebAPI webApi;
     //   private final SignalServiceDataStoreImpl signalServiceDataStore = new SignalServiceDataStoreImpl();
     private CredentialsProvider credentialsProvider;
 
@@ -138,7 +181,7 @@ static final String SIGNAL_SERVICE_URL = "https://textsecure-service.whispersyst
     public Client(Elita elita) {
         this.lock = new LockImpl();
         this.elita = elita;
-        this.webApi = new WebAPI(this, SERVER_NAME);
+//        this.webApi = new WebAPI(this, SERVER_NAME);
         this.webSocket = new WebSocketInterface();
         this.provisioningCipher = new ProvisioningCipher(null);
         this.sr = new SecureRandom();
@@ -378,26 +421,6 @@ ObjectMapper mapper = new ObjectMapper();
         this.webApi.fetchHttp("PUT", String.format(PREKEY_PATH, ""), jsonData);
     }
 
-    public static SignalServiceConfiguration createConfiguration() {
-        SignalServiceUrl[] urls = {
-            new SignalServiceUrl(SIGNAL_SERVICE_URL, trustStore)};
-        Map<Integer, SignalCdnUrl[]> cdnMap = new HashMap<>();
-        cdnMap.put(0, new SignalCdnUrl[]{new SignalCdnUrl("https://cdn.signal.org", trustStore)});
-        cdnMap.put(2, new SignalCdnUrl[]{new SignalCdnUrl("https://cdn2.signal.org", trustStore)});
-        SignalKeyBackupServiceUrl[] backup = new SignalKeyBackupServiceUrl[]{
-            new SignalKeyBackupServiceUrl(SIGNAL_KEY_BACKUP_URL, trustStore)};
-
-        SignalStorageUrl[] storageUrl = new SignalStorageUrl[]{
-            new SignalStorageUrl(SIGNAL_STORAGE_URL, trustStore)};
-        List<Interceptor> interceptors = new LinkedList<>();
-        SignalServiceConfiguration answer = new SignalServiceConfiguration(
-                urls, cdnMap,
-                new SignalContactDiscoveryUrl[]{new SignalContactDiscoveryUrl("https://api.directory.signal.org", trustStore)},
-                backup, storageUrl, interceptors,
-                Optional.empty(), Optional.empty(), null
-        );
-        return answer;
-    }
     
     private SignalServiceMessageReceiver createMessageReceiver() {
         // ensure configuration and provider are ok
@@ -658,3 +681,4 @@ ObjectMapper mapper = new ObjectMapper();
         
     }
 }
+ */

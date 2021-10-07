@@ -3,17 +3,8 @@ module com.gluonhq.wave {
     requires java.logging;
     requires javafx.controls;
     requires javafx.swing;
-    requires com.google.common;
     requires com.google.protobuf;
     requires bcprov.jdk15on;
-    requires org.eclipse.jetty.client;
-    requires org.eclipse.jetty.http;
-    requires org.eclipse.jetty.util;
-    requires org.eclipse.jetty.websocket.api;
-    requires org.eclipse.jetty.websocket.client;
-    requires websocket.resources;
-    // requires signal.metadata.java;
-    // requires signal.service.java;
     requires org.whispersystems.metadata;
     requires org.whispersystems.protocol;
     requires org.whispersystems.service;
