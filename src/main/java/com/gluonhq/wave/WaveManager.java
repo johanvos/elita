@@ -20,29 +20,36 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javafx.beans.InvalidationListener;
 import javafx.beans.Observable;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.collections.transformation.FilteredList;
 import okhttp3.Interceptor;
 import okhttp3.Response;
 import org.eclipse.jetty.client.api.ContentResponse;
 import org.signal.libsignal.metadata.certificate.CertificateValidator;
+import org.signal.libsignal.metadata.ProtocolNoSessionException;
+
 import org.whispersystems.libsignal.IdentityKey;
 import org.whispersystems.libsignal.IdentityKeyPair;
 import org.whispersystems.libsignal.InvalidKeyException;
 import org.whispersystems.libsignal.InvalidMessageException;
+import org.whispersystems.libsignal.InvalidVersionException;
 import org.whispersystems.libsignal.ecc.Curve;
 import org.whispersystems.libsignal.ecc.ECKeyPair;
 import org.whispersystems.libsignal.ecc.ECPrivateKey;
 import org.whispersystems.libsignal.ecc.ECPublicKey;
+import org.whispersystems.libsignal.state.SignedPreKeyRecord;
 import org.whispersystems.signalservice.api.SignalServiceMessagePipe;
 import org.whispersystems.signalservice.api.SignalServiceMessageReceiver;
 import org.whispersystems.signalservice.api.SignalServiceMessageSender;
@@ -121,6 +128,7 @@ public class WaveManager {
 
     private MessagingClient messageListener;
     private static WaveManager INSTANCE = new WaveManager();
+    SignalServiceMessagePipe messagePipe;
     
     private WaveManager() {
         signalServiceConfiguration = createConfiguration();
@@ -135,6 +143,7 @@ public class WaveManager {
         try {
             restoreCredentialsProvider();
             retrieveIdentityKeyPair();
+            retrieveSignedPreKey();
         } catch (IOException e) {
             System.err.println("[WaveManager] no credentials found!");
         } catch (InvalidKeyException ex) {
@@ -155,6 +164,10 @@ public class WaveManager {
         return Files.exists(getCredentialsPath());
     }
 
+    public String getMyUuid () {
+        return this.credentialsProvider.getUuid().toString();
+    }
+    
     public void startProvisioning(ProvisioningClient provisioningClient) {
         provisioningManager = new ProvisioningManager(this, provisioningClient);
         provisioningManager.start();
@@ -228,6 +241,11 @@ public class WaveManager {
         sender.sendMessage(message, Optional.empty());
     }
     
+    public void fetchMissedMessages() throws IOException, UntrustedIdentityException {
+        SignalServiceSyncMessage message = SignalServiceSyncMessage.forFetchLatest(SignalServiceSyncMessage.FetchType.LOCAL_PROFILE);
+        sender.sendMessage(message, Optional.empty());
+    }
+    
     public void sendMessage(String uuid, String text) {
         ensureConnected();
         Contact target = contacts.stream().filter(c -> uuid.equals(c.getUuid())).findFirst().get();
@@ -261,6 +279,7 @@ public class WaveManager {
      * @throws InvalidKeyException
      */
     public void saveIdentityKeyPair(byte[] b) throws InvalidKeyException {
+        Thread.dumpStack();
         String dirname = System.getProperty("user.home")
                 + File.separator + ".signalfx";
         File dir = new File(dirname);
@@ -273,7 +292,32 @@ public class WaveManager {
         }
         storeIdentityKeyPair(b);
     }
+    
+    public void saveSignedPreKey(byte[] b) throws InvalidKeyException {
+        Thread.dumpStack();
+        Path path = SIGNAL_FX_DIR.toPath().resolve("signedprekey");
+        try {
+            Files.write(path, b, StandardOpenOption.CREATE);
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
+    }
+    
+    public SignedPreKeyRecord retrieveSignedPreKey() throws InvalidKeyException, IOException {
+        Thread.dumpStack();
+        Path path = SIGNAL_FX_DIR.toPath().resolve("signedprekey");
+        byte[] b = Files.readAllBytes(path);
+        SignedPreKeyRecord answer = new SignedPreKeyRecord(b);
+        this.signalProtocolStore.storeSignedPreKey(2, answer);
+        return answer;
+    }
 
+    /**
+     * Create the identityKeyPair based on the provided byte sequence and stores
+     * it in the SignalProtocolStore (in memory)
+     * @param b the byte sequence
+     * @throws InvalidKeyException 
+     */
     void storeIdentityKeyPair(byte[] b) throws InvalidKeyException {
         ECPrivateKey privateKey = Curve.decodePrivatePoint(b);
         ECPublicKey publicKey = Curve.createPublicKeyFromPrivateKey(b);
@@ -284,7 +328,12 @@ public class WaveManager {
         signalProtocolStore.setIdentityKeyPair(ikp);
     }
 
+    /**
+     * Retrieve the IdentityKeyPair from disk and set it on the 
+     * SignalProtocolStore
+     */
     void retrieveIdentityKeyPair() throws InvalidKeyException, IOException {
+        Thread.dumpStack();
         String dirname = System.getProperty("user.home")
                 + File.separator + ".signalfx";
         File dir = new File(dirname);
@@ -292,7 +341,6 @@ public class WaveManager {
         Path path = dir.toPath().resolve("keypair");
         byte[] b = Files.readAllBytes(path);
         storeIdentityKeyPair(b);
-
     }
 
     public void ensureConnected() {
@@ -308,6 +356,27 @@ public class WaveManager {
         System.err.println("[CLIENT] created receiver, wait a bit");
         this.sender = createMessageSender(receiver);
         this.connected = true;
+        System.err.println("Created sender");
+    }
+
+    public void startListening() {
+        System.err.println("[WM] startListening");
+        try {
+
+//            List<SignalServiceEnvelope> retrieved = this.receiver.retrieveMessages(e -> {
+//                try {
+//                    System.err.println("WM, retrieveMessage callback! Will process env "+Objects.hashCode(e));
+//                    processEnvelope(e);
+//                } catch (Exception ex) {
+//                    Logger.getLogger(WaveManager.class.getName()).log(Level.SEVERE, null, ex);
+//                }
+//            });
+//            System.err.println("asked to retrieve messages, result = " + retrieved);
+            processMessagePipe(messagePipe);
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
     }
 
     private SignalServiceMessageReceiver createMessageReceiver() {
@@ -334,9 +403,8 @@ public class WaveManager {
     }
 
     private SignalServiceMessageSender createMessageSender(SignalServiceMessageReceiver receiver) {
-        SignalServiceMessagePipe messagePipe = receiver.createMessagePipe();
+        messagePipe = receiver.createMessagePipe();
         SignalServiceMessagePipe unidentifiedMessagePipe = receiver.createUnidentifiedMessagePipe();
-        processMessagePipe(messagePipe);
         ExecutorService executorService = new ScheduledThreadPoolExecutor(5);
         SignalServiceMessageSender sender = new SignalServiceMessageSender(
                 signalServiceConfiguration,
@@ -356,6 +424,35 @@ public class WaveManager {
     }
 
     void processMessagePipe(SignalServiceMessagePipe pipe) {
+//        Thread t0 = new Thread() {
+//            @Override
+//            public void run() {
+//                boolean backlog = true;
+//                while (backlog) {
+//                    try {
+//                        System.err.println("Waiting to process backlog entry");
+//                        SignalServiceEnvelope env = pipe.read(10, TimeUnit.SECONDS, new SignalServiceMessagePipe.MessagePipeCallback() {
+//                            @Override
+//                            public void onMessage(SignalServiceEnvelope envelope) {
+//                                System.err.println("CALLBACK got message, env = " + envelope);
+//                                try {
+//                                    processEnvelope(envelope);
+//                                } catch (Exception ex) {
+//                                    Logger.getLogger(WaveManager.class.getName()).log(Level.SEVERE, null, ex);
+//                                }
+//                            }
+//                        });
+//                        System.err.println("Got backlog entry? "+env);
+//                        
+//                    } catch (Exception ex) {
+//                        ex.printStackTrace();
+//                        backlog = false;
+//                    }
+//                }
+//            }
+//        };
+//        t0.start();
+
         Thread t = new Thread() {
             @Override
             public void run() {
@@ -364,10 +461,10 @@ public class WaveManager {
                     try {
                         System.err.println("[PIPE] waiting for envelope...");
                         SignalServiceEnvelope envelope = pipe.read(20, TimeUnit.SECONDS);
-                        System.err.println("[PIPE] got envelope");
+                        System.err.println("[PIPE] got envelope "+Objects.hashCode(envelope));
+                        System.err.println("[PIPE] envelope Type = " + envelope.getType());
                         SignalServiceContent content = mydecrypt(envelope);
                         System.err.println("[PIPE] got content: " + content);
-                        System.err.println("[PIPE] envelope Type = " + envelope.getType());
                         if (content != null) {
                             if (content.getSyncMessage().isPresent()) {
                                 System.err.println("[PIPE] envelope has syncmessage");
@@ -388,12 +485,62 @@ public class WaveManager {
         t.start();
     }
 
+    private void processEnvelope(SignalServiceEnvelope envelope) throws Exception {
+        System.err.println("WaveManager will process Envelope " + envelope);
+        SignalServiceContent content = mydecrypt(envelope);
+        System.err.println("[WM] got content: " + content);
+        if (content != null) {
+            if (content.getSyncMessage().isPresent()) {
+                System.err.println("[WM] envelope has syncmessage");
+                SignalServiceSyncMessage sssm = content.getSyncMessage().get();
+                processSyncMessage(sssm);
+            }
+            if (content.getDataMessage().isPresent()) {
+                SignalServiceDataMessage ssdm = content.getDataMessage().get();
+                processDataMessage(content.getSender(), ssdm);
+            }
+        }
+    }
+    
     SignalServiceContent mydecrypt(SignalServiceEnvelope sse) throws Exception {
         SignalServiceCipher cipher = new SignalServiceCipher(signalServiceAddress,
                 signalProtocolStore,
                 new LockImpl(),
                 getCertificateValidator());
-        SignalServiceContent content = cipher.decrypt(sse);
+        SignalServiceContent content = null;
+        try {
+            int bl = sse.getContent().length;
+            System.err.println("[WM] I need to decrypt " + sse+" with " +bl+" bytes, with id "+Objects.hashCode(sse));
+            content = cipher.decrypt(sse);
+            System.err.println("[WM] I did to decrypt " + sse+" with id "+Objects.hashCode(sse));
+        } catch (ProtocolNoSessionException e) {
+            System.err.println("ProtocolNoSessionException!");
+            String senderId = e.getSender();
+            int senderDevice = e.getSenderDevice();
+            System.err.println("SENDERID = " + senderId + " and dev = " + senderDevice);
+            String tuuid = null;
+            if (this.signalProtocolStore.getMyUuid().equals(senderId)) {
+                System.err.println("It's me!");
+                tuuid = senderId;
+                senderId = "";
+            }
+            if (tuuid == null) {
+                tuuid = getContactByNumber(senderId).get().getUuid();
+            }
+            SignalServiceAddress addy
+                    = new SignalServiceAddress(UUID.fromString(tuuid), senderId);
+            System.err.println("[WM] decrypt will send nullmessage to "+addy);
+            sender.sendNullMessage(addy, Optional.empty());
+            int bl2 = sse.getContent().length;
+            System.err.println("[WM] did send null message, we should have session now for "+bl2+" bytes");
+
+            SignalServiceCipher cipher2 = new SignalServiceCipher(signalServiceAddress,
+                signalProtocolStore,
+                new LockImpl(),
+                getCertificateValidator());
+            content = cipher2.decrypt(sse);
+        }
+        System.err.println("[WM] descrypt will return "+content);
         return content;
     }
 
@@ -533,6 +680,13 @@ Path contacts = SIGNAL_FX_CONTACTS_DIR.toPath();
         return signalProtocolStore;
     }
 
+    public Optional<Contact> getContactByNumber(String number) {
+        FilteredList<Contact> filtered = contacts.filtered(c -> number.equals(c.getNr()));
+        System.err.println("resulting contact for nr "+number+" = "+filtered);
+        if (filtered.size() == 0) System.err.println("CONTACTS = "+contacts);
+        return Optional.ofNullable(filtered.size() > 0 ? filtered.get(0): null);
+    }
+   
     public static CertificateValidator getCertificateValidator() {
         try {
             ECPublicKey unidentifiedSenderTrustRoot = Curve.decodePoint(Base64.decode(UNIDENTIFIED_SENDER_TRUST_ROOT), 0);

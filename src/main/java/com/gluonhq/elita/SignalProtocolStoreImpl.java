@@ -49,6 +49,10 @@ public class SignalProtocolStoreImpl implements SignalServiceProtocolStore {
         this.myUuid = v;
     }
     
+    public String getMyUuid() {
+        return this.myUuid;
+    }
+    
     @Override
     public IdentityKeyPair getIdentityKeyPair() {
         return this.identityKeyPair;
@@ -92,46 +96,59 @@ public class SignalProtocolStoreImpl implements SignalServiceProtocolStore {
 
       @Override
     public PreKeyRecord loadPreKey(int i) throws InvalidKeyIdException {
+          System.err.println("[STORE] loadPreKey "+i);
         return map.get(i);
     }
 
     @Override
     public void storePreKey(int i, PreKeyRecord pkr) {
+        System.err.println("[STORE] storePreKey "+i);
         map.put(i, pkr);
     }
 
     @Override
     public boolean containsPreKey(int i) {
+        System.err.println("[STORE] containsPreKey? "+i);
         return map.containsKey(i);
     }
 
     @Override
     public void removePreKey(int i) {
+        System.err.println("[STORE] removePreKey "+i);
         map.remove(i);
     }
 
     @Override
     public SignedPreKeyRecord loadSignedPreKey(int i) throws InvalidKeyIdException {
+        Thread.dumpStack();
+        System.err.println("[STORE] load signed prekey "+i);
         return signedMap.get(i);
     }
 
     @Override
     public List<SignedPreKeyRecord> loadSignedPreKeys() {
+        System.err.println("[STORE] loadSignedPreKeys");
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
     public void storeSignedPreKey(int i, SignedPreKeyRecord spkr) {
+        Thread.dumpStack();
+        System.err.println("[STORE] store signed prekey "+i);
         signedMap.put(i, spkr);
     }
 
     @Override
     public boolean containsSignedPreKey(int i) {
+                Thread.dumpStack();
+        System.err.println("[STORE] contains signed prekey? "+i);
         return signedMap.containsKey(i);
     }
 
     @Override
     public void removeSignedPreKey(int i) {
+        Thread.dumpStack();
+        System.err.println("[STORE] remove signed prekey? "+i);
         signedMap.remove(i);
     }
     
@@ -175,7 +192,10 @@ public class SignalProtocolStoreImpl implements SignalServiceProtocolStore {
 
   @Override
   public synchronized boolean containsSession(SignalProtocolAddress address) {
-    return sessions.containsKey(address);
+      boolean answer = sessions.containsKey(address);
+    //  Thread.dumpStack();
+      System.err.println("[STORE] containsSession asked for "+address+", return "+answer);
+    return answer;
   }
 
   @Override

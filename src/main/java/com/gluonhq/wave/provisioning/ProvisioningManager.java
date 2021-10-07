@@ -22,10 +22,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import okhttp3.Response;
 import org.eclipse.jetty.util.log.Log;
 import org.eclipse.jetty.util.log.StdErrLog;
 import org.whispersystems.libsignal.IdentityKeyPair;
+import org.whispersystems.libsignal.InvalidKeyException;
 import org.whispersystems.libsignal.state.PreKeyRecord;
 import org.whispersystems.libsignal.state.SignedPreKeyRecord;
 import org.whispersystems.signalservice.api.push.TrustStore;
@@ -249,6 +252,12 @@ public class ProvisioningManager {
     public void generateAndRegisterKeys() throws IOException {
         IdentityKeyPair identityKeypair = waveManager.getSignalProtocolStore().getIdentityKeyPair();
         SignedPreKeyRecord signedPreKey = KeyUtil.generateSignedPreKey(identityKeypair, true);
+        try {
+            // TODO: store this independent from the generation of prekeys
+            waveManager.saveSignedPreKey(signedPreKey.serialize());
+        } catch (InvalidKeyException ex) {
+            Logger.getLogger(ProvisioningManager.class.getName()).log(Level.SEVERE, null, ex);
+        }
         List<PreKeyRecord> records = KeyUtil.generatePreKeys(100);
         System.err.println("GARK, ik = "+ identityKeypair+" with pubkey = "+identityKeypair.getPublicKey()+" and spk = "+signedPreKey+" and records = "+records);
         String response = accountSocket.registerPreKeys(identityKeypair.getPublicKey(), signedPreKey, records);
