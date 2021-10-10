@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.gluonhq</groupId>
     <artifactId>wave</artifactId>
-    <version>0.1.6-SNAPSHOT</version>
+    <version>0.1.6</version>
     <packaging>jar</packaging>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -20,7 +20,7 @@
         <dependency>
           <groupId>org.whispersystems</groupId>
           <artifactId>signal-service-java</artifactId>
-          <version>2.15.4-gluon-4-SNAPSHOT</version>
+          <version>2.15.4-gluon-4</version>
         </dependency>
         <dependency>
             <groupId>org.openjfx</groupId>
