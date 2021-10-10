@@ -75,15 +75,15 @@ public class ProvisioningCipher {
         System.err.println("cipherText has "+doFinal.length);
         ProvisionMessage pm = ProvisionMessage.parseFrom(doFinal);
         System.err.println("NR = " + pm.getNumber());
-//        ECPrivateKey privateKey = Curve.decodePrivatePoint(pm.getIdentityKeyPrivate().toByteArray());
-//        ECPublicKey publicKey = Curve.createPublicKeyFromPrivateKey(pm.getIdentityKeyPrivate().toByteArray());
-//     
-//        ECKeyPair keyPair = new ECKeyPair(publicKey, privateKey);
-//        System.err.println("identitykp = "+ keyPair);
-//        IdentityKey identityKey = new IdentityKey(publicKey);
-//        IdentityKeyPair ikp = new IdentityKeyPair(identityKey, privateKey);
+        ECPrivateKey privateKey = Curve.decodePrivatePoint(pm.getIdentityKeyPrivate().toByteArray());
+        ECPublicKey publicKey = Curve.createPublicKeyFromPrivateKey(pm.getIdentityKeyPrivate().toByteArray());
+     
+        ECKeyPair keyPair = new ECKeyPair(publicKey, privateKey);
+        System.err.println("identitykp = "+ keyPair);
+        IdentityKey identityKey = new IdentityKey(publicKey);
+        IdentityKeyPair ikp = new IdentityKeyPair(identityKey, privateKey);
 //        Elita.getSignalProtocolStore().setIdentityKeyPair(ikp);
-        elita.saveIdentityKeyPair(pm.getIdentityKeyPrivate().toByteArray());
+        elita.getSignalProtocolStore().setIdentityKeyPair(ikp);
         return pm;
     }
     

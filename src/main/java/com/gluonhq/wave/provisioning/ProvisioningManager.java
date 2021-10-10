@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.gluonhq.elita.Client;
 import com.gluonhq.elita.Elita;
+import com.gluonhq.elita.SignalProtocolStoreImpl;
 import com.gluonhq.elita.ProvisioningCipher;
 import com.gluonhq.elita.TrustStoreImpl;
 import com.gluonhq.elita.crypto.KeyUtil;
@@ -65,6 +66,7 @@ public class ProvisioningManager {
     
     private ProvisioningClient elita;
     private WaveManager waveManager;
+    private final SignalProtocolStoreImpl store;
 
     /**
      * Flow: when the start method is invoked, this class will generate a URL
@@ -80,6 +82,7 @@ public class ProvisioningManager {
         this.waveManager = wave;
         this.trustStore = new TrustStoreImpl();
         this.provisioningCipher = new ProvisioningCipher(waveManager);
+        this.store = wave.getSignalProtocolStore();
     }
 
     public void start() {
@@ -187,7 +190,7 @@ public class ProvisioningManager {
         this.credentialsProvider = new StaticCredentialsProvider(uuid,
                 pm.getNumber(), password, "signalingkey", deviceId);
         startAccountWebSocket();
-        waveManager.storeCredentialsProvider(this.credentialsProvider);
+        waveManager.setCredentialsProvider(this.credentialsProvider);
         generateAndRegisterKeys();
     }
 
@@ -212,7 +215,7 @@ public class ProvisioningManager {
             String did = response.substring(c + 1, response.length() - 1);
             this.deviceId = Integer.parseInt(did);
             System.err.println("did = " + deviceId);
-            Elita.getSignalProtocolStore().setRegistrationId(deviceId);
+            waveManager.getSignalProtocolStore().setRegistrationId(deviceId);
         } catch (Exception e) {
             System.err.println("confirmcode Got error: " + e.getMessage());
             e.printStackTrace();
@@ -247,12 +250,8 @@ public class ProvisioningManager {
     public void generateAndRegisterKeys() throws IOException {
         IdentityKeyPair identityKeypair = waveManager.getSignalProtocolStore().getIdentityKeyPair();
         SignedPreKeyRecord signedPreKey = KeyUtil.generateSignedPreKey(identityKeypair, true);
-        try {
-            // TODO: store this independent from the generation of prekeys
-            waveManager.saveSignedPreKey(signedPreKey.serialize());
-        } catch (InvalidKeyException ex) {
-            Logger.getLogger(ProvisioningManager.class.getName()).log(Level.SEVERE, null, ex);
-        }
+        store.storeSignedPreKey(2, signedPreKey);
+  
         List<PreKeyRecord> records = KeyUtil.generatePreKeys(100);
         System.err.println("GARK, ik = "+ identityKeypair+" with pubkey = "+identityKeypair.getPublicKey()+" and spk = "+signedPreKey+" and records = "+records);
         String response = accountSocket.registerPreKeys(identityKeypair.getPublicKey(), signedPreKey, records);
@@ -289,7 +288,9 @@ public class ProvisioningManager {
 
         @Override
         public boolean onGenericFailure(Response response, Throwable throwable) {
-            throw new UnsupportedOperationException("[PM] " + name + " Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+System.err.println("onGenericFailure, response = " + response+", throwable = " + throwable);
+throwable.printStackTrace();
+            return false;
         }
 
     }

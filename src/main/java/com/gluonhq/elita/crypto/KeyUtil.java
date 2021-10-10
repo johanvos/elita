@@ -5,7 +5,8 @@
  */
 package com.gluonhq.elita.crypto;
 
-import com.gluonhq.elita.Elita;
+import com.gluonhq.elita.SignalProtocolStoreImpl;
+
 import java.util.LinkedList;
 import java.util.List;
 import org.whispersystems.libsignal.IdentityKeyPair;
@@ -23,8 +24,11 @@ import org.whispersystems.libsignal.util.Medium;
  */
 public class KeyUtil {
 
-    private static SignalProtocolStore protocolStore = Elita.getSignalProtocolStore();
+    private static SignalProtocolStore protocolStore;
 
+    public static void setSignalProtocolStore (SignalProtocolStoreImpl p) {
+        protocolStore = p;
+    }
     public synchronized static List<PreKeyRecord> generatePreKeys(int cnt) {
         List<PreKeyRecord> records = new LinkedList<>();
         int preKeyIdOffset = 1; // TODO 

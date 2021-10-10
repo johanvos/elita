@@ -1,8 +1,10 @@
 package com.gluonhq.wave;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.gluonhq.elita.crypto.KeyUtil;
 import com.gluonhq.elita.LockImpl;
 import com.gluonhq.elita.SignalProtocolStoreImpl;
+import static com.gluonhq.elita.SignalProtocolStoreImpl.SIGNAL_FX_CONTACTS_DIR;
 import com.gluonhq.elita.TrustStoreImpl;
 import com.gluonhq.wave.message.MessagingClient;
 import com.gluonhq.wave.provisioning.ProvisioningClient;
@@ -107,17 +109,11 @@ public class WaveManager {
     private SignalServiceMessageReceiver receiver;
     private SignalServiceMessageSender sender;
     private boolean connected;
-    
-    private final static String SIGNAL_FX;
-    private final static File SIGNAL_FX_DIR;
-    public final static File SIGNAL_FX_CONTACTS_DIR;
 
+    public final static File SIGNAL_FX_CONTACTS_DIR;
+    
     static {
-        SIGNAL_FX = System.getProperty("user.home")
-                + File.separator + ".signalfx";
-        SIGNAL_FX_DIR = new File(SIGNAL_FX);
-        SIGNAL_FX_DIR.mkdirs();
-        Path contacts = SIGNAL_FX_DIR.toPath().resolve("contacts/");
+        Path contacts = SignalProtocolStoreImpl.SIGNAL_FX_PATH.resolve("contacts/");
         SIGNAL_FX_CONTACTS_DIR = contacts.toFile();
         try {
             Files.createDirectories(contacts);
@@ -125,6 +121,20 @@ public class WaveManager {
             ex.printStackTrace();
         }
     }
+//
+//    static {
+//        SIGNAL_FX = System.getProperty("user.home")
+//                + File.separator + ".signalfx";
+//        SIGNAL_FX_DIR = new File(SIGNAL_FX);
+//        SIGNAL_FX_DIR.mkdirs();
+//        Path contacts = SIGNAL_FX_DIR.toPath().resolve("contacts/");
+//        SIGNAL_FX_CONTACTS_DIR = contacts.toFile();
+//        try {
+//            Files.createDirectories(contacts);
+//        } catch (Exception ex) {
+//            ex.printStackTrace();
+//        }
+//    }
 
     private MessagingClient messageListener;
     private static WaveManager INSTANCE = new WaveManager();
@@ -132,23 +142,28 @@ public class WaveManager {
     
     private WaveManager() {
         signalServiceConfiguration = createConfiguration();
-        signalProtocolStore = new SignalProtocolStoreImpl();
+        signalProtocolStore = SignalProtocolStoreImpl.getInstance();
+        credentialsProvider = signalProtocolStore.getCredentialsProvider();
+        KeyUtil.setSignalProtocolStore(signalProtocolStore);
         lock = new LockImpl();
-        contacts.addListener(new InvalidationListener() {
-            @Override
-            public void invalidated(Observable o) {
-                System.err.println("WAVEMANAGER, contacts invalidated! "+ contacts.toString());
-            }
-        });
-        try {
-            restoreCredentialsProvider();
-            retrieveIdentityKeyPair();
-            retrieveSignedPreKey();
-        } catch (IOException e) {
-            System.err.println("[WaveManager] no credentials found!");
-        } catch (InvalidKeyException ex) {
-            Logger.getLogger(WaveManager.class.getName()).log(Level.SEVERE, null, ex);
+        if (isInitialized()) {
+            this.signalServiceAddress = new SignalServiceAddress(credentialsProvider.getUuid(), credentialsProvider.getE164());
         }
+//        contacts.addListener(new InvalidationListener() {
+//            @Override
+//            public void invalidated(Observable o) {
+//                System.err.println("WAVEMANAGER, contacts invalidated! "+ contacts.toString());
+//            }
+//        });
+//        try {
+//            restoreCredentialsProvider();
+//            retrieveIdentityKeyPair();
+//            retrieveSignedPreKey();
+//        } catch (IOException e) {
+//            System.err.println("[WaveManager] no credentials found!");
+//        } catch (InvalidKeyException ex) {
+//            Logger.getLogger(WaveManager.class.getName()).log(Level.SEVERE, null, ex);
+//        }
     }
     
     public static WaveManager getInstance() {
@@ -161,7 +176,7 @@ public class WaveManager {
     }
 
     public boolean isInitialized() {
-        return Files.exists(getCredentialsPath());
+        return signalProtocolStore.isInitialized();
     }
 
     public String getMyUuid () {
@@ -175,6 +190,8 @@ public class WaveManager {
 
     public void createAccount(String nr, String deviceName) throws JsonProcessingException, IOException {
         provisioningManager.createAccount(nr, deviceName);
+        this.credentialsProvider = signalProtocolStore.getCredentialsProvider();
+        this.signalServiceAddress = new SignalServiceAddress(credentialsProvider.getUuid(), credentialsProvider.getE164());
         provisioningManager.stop();
     }
     
@@ -205,20 +222,25 @@ public class WaveManager {
     
     // read contacts from file
     private List<Contact> readContacts() throws IOException {
-        Path path = SIGNAL_FX_CONTACTS_DIR.toPath().resolve("contactlist");
-        List<String> lines = Files.readAllLines(path);
         List<Contact> answer = new LinkedList<>();
-        for (int i = 0; i < lines.size(); i = i + 4) {
-            Contact c = new Contact(lines.get(i), lines.get(i+1), lines.get(i+2));
-            String avt = lines.get(i+3);
-            c.setAvatarPath(avt);
-            answer.add(c);
+        Path path = SIGNAL_FX_CONTACTS_DIR.toPath().resolve("contactlist");
+        if (Files.exists(path)) {
+            List<String> lines = Files.readAllLines(path);
+            for (int i = 0; i < lines.size(); i = i + 4) {
+                Contact c = new Contact(lines.get(i), lines.get(i + 1), lines.get(i + 2));
+                String avt = lines.get(i + 3);
+                c.setAvatarPath(avt);
+                answer.add(c);
+            }
         }
         return answer;
     }
     
     private void storeContacts() throws IOException {
         Path path = SIGNAL_FX_CONTACTS_DIR.toPath().resolve("contactlist");
+        if (!Files.exists(path.getParent())) {
+            Files.createDirectories(path.getParent());
+        }
         List<String> lines = new LinkedList<String>();
         for (Contact contact : contacts) {
             lines.add(contact.getName());
@@ -238,7 +260,10 @@ public class WaveManager {
         SignalServiceProtos.SyncMessage.Request request = SignalServiceProtos.SyncMessage.Request.newBuilder().setType(SignalServiceProtos.SyncMessage.Request.Type.CONTACTS).build();
         RequestMessage requestMessage = new RequestMessage(request);
         SignalServiceSyncMessage message = SignalServiceSyncMessage.forRequest(requestMessage);
+        System.err.println("[WAVEMANAGER] will now send SyncContacts request");
         sender.sendMessage(message, Optional.empty());
+        System.err.println("[WAVEMANAGER] did send SyncContacts request");
+
     }
     
     public void fetchMissedMessages() throws IOException, UntrustedIdentityException {
@@ -261,56 +286,35 @@ public class WaveManager {
         }
 
     }
+//
+//    static Path getCredentialsPath() {
+////        String dirname = System.getProperty("user.home")
+////                + File.separator + ".signalfx";
+//        File dir = new File(SIGNAL_FX);
+////        dir.mkdirs();
+//        Path path = dir.toPath().resolve("credentials");
+//        return path;
+//    }
 
-    static Path getCredentialsPath() {
-//        String dirname = System.getProperty("user.home")
-//                + File.separator + ".signalfx";
-        File dir = new File(SIGNAL_FX);
-//        dir.mkdirs();
-        Path path = dir.toPath().resolve("credentials");
-        return path;
-    }
-
-    /**
-     * Save the byes for this keypair to persistent storage and update the
-     * instance store
-     *
-     * @param b
-     * @throws InvalidKeyException
-     */
-    public void saveIdentityKeyPair(byte[] b) throws InvalidKeyException {
-        Thread.dumpStack();
-        String dirname = System.getProperty("user.home")
-                + File.separator + ".signalfx";
-        File dir = new File(dirname);
-        dir.mkdirs();
-        Path path = dir.toPath().resolve("keypair");
-        try {
-            Files.write(path, b, StandardOpenOption.CREATE);
-        } catch (IOException ex) {
-            ex.printStackTrace();
-        }
-        storeIdentityKeyPair(b);
-    }
-    
-    public void saveSignedPreKey(byte[] b) throws InvalidKeyException {
-        Thread.dumpStack();
-        Path path = SIGNAL_FX_DIR.toPath().resolve("signedprekey");
-        try {
-            Files.write(path, b, StandardOpenOption.CREATE);
-        } catch (IOException ex) {
-            ex.printStackTrace();
-        }
-    }
-    
-    public SignedPreKeyRecord retrieveSignedPreKey() throws InvalidKeyException, IOException {
-        Thread.dumpStack();
-        Path path = SIGNAL_FX_DIR.toPath().resolve("signedprekey");
-        byte[] b = Files.readAllBytes(path);
-        SignedPreKeyRecord answer = new SignedPreKeyRecord(b);
-        this.signalProtocolStore.storeSignedPreKey(2, answer);
-        return answer;
-    }
+//    
+//    public void saveSignedPreKey(byte[] b) throws InvalidKeyException {
+//        Thread.dumpStack();
+//        Path path = SIGNAL_FX_DIR.toPath().resolve("signedprekey");
+//        try {
+//            Files.write(path, b, StandardOpenOption.CREATE);
+//        } catch (IOException ex) {
+//            ex.printStackTrace();
+//        }
+//    }
+//    
+//    public SignedPreKeyRecord retrieveSignedPreKey() throws InvalidKeyException, IOException {
+//        Thread.dumpStack();
+//        Path path = SIGNAL_FX_DIR.toPath().resolve("signedprekey");
+//        byte[] b = Files.readAllBytes(path);
+//        SignedPreKeyRecord answer = new SignedPreKeyRecord(b);
+//        this.signalProtocolStore.storeSignedPreKey(2, answer);
+//        return answer;
+//    }
 
     /**
      * Create the identityKeyPair based on the provided byte sequence and stores
@@ -647,45 +651,45 @@ Path contacts = SIGNAL_FX_CONTACTS_DIR.toPath();
         );
         return answer;
     }
-
-    // get credentials info from storage and populate instance fields.
-    private void restoreCredentialsProvider() throws IOException {
-        Path path = getCredentialsPath();
-        List<String> lines = Files.readAllLines(path);
-        String uuidString = lines.get(0);
-        UUID uuid = UUID.fromString(uuidString);
-        String number = lines.get(1);
-        String password = lines.get(2);
-        int deviceId = Integer.parseInt(lines.get(3));
-        this.signalProtocolStore.setDeviceId(deviceId);
-        this.signalProtocolStore.setMyUuid(uuidString);
-
-        this.credentialsProvider = new StaticCredentialsProvider(uuid,
-                number, password, "signalingkey", deviceId);
-        this.signalServiceAddress = new SignalServiceAddress(uuid, number);
-
-    }
-
-    public void storeCredentialsProvider(CredentialsProvider cp) throws IOException {
-        this.credentialsProvider = cp;
-        if (cp == null) {
-            throw new IllegalArgumentException("No CredentialsProvider");
-        }
-        Path path = getCredentialsPath();
-        File credFile = path.toFile();
-        if (credFile.exists()) {
-            credFile.delete();
-        }
-
-        UUID uuid = cp.getUuid();
-
-        Files.writeString(path, uuid.toString() + "\n", StandardOpenOption.CREATE);
-        Files.writeString(path, cp.getE164() + "\n", StandardOpenOption.APPEND);
-        Files.writeString(path, cp.getPassword() + "\n", StandardOpenOption.APPEND);
-        Files.writeString(path, Integer.toString(cp.getDeviceId()) + "\n", StandardOpenOption.APPEND);
-        Files.writeString(path, cp.getSignalingKey() + "\n", StandardOpenOption.APPEND);
-        restoreCredentialsProvider();
-    }
+//
+//    // get credentials info from storage and populate instance fields.
+//    private void restoreCredentialsProvider() throws IOException {
+//        Path path = getCredentialsPath();
+//        List<String> lines = Files.readAllLines(path);
+//        String uuidString = lines.get(0);
+//        UUID uuid = UUID.fromString(uuidString);
+//        String number = lines.get(1);
+//        String password = lines.get(2);
+//        int deviceId = Integer.parseInt(lines.get(3));
+//        this.signalProtocolStore.setDeviceId(deviceId);
+//        this.signalProtocolStore.setMyUuid(uuidString);
+//
+//        this.credentialsProvider = new StaticCredentialsProvider(uuid,
+//                number, password, "signalingkey", deviceId);
+//        this.signalServiceAddress = new SignalServiceAddress(uuid, number);
+//
+//    }
+//
+//    public void storeCredentialsProvider(CredentialsProvider cp) throws IOException {
+//        this.credentialsProvider = cp;
+//        if (cp == null) {
+//            throw new IllegalArgumentException("No CredentialsProvider");
+//        }
+//        Path path = getCredentialsPath();
+//        File credFile = path.toFile();
+//        if (credFile.exists()) {
+//            credFile.delete();
+//        }
+//
+//        UUID uuid = cp.getUuid();
+//
+//        Files.writeString(path, uuid.toString() + "\n", StandardOpenOption.CREATE);
+//        Files.writeString(path, cp.getE164() + "\n", StandardOpenOption.APPEND);
+//        Files.writeString(path, cp.getPassword() + "\n", StandardOpenOption.APPEND);
+//        Files.writeString(path, Integer.toString(cp.getDeviceId()) + "\n", StandardOpenOption.APPEND);
+//        Files.writeString(path, cp.getSignalingKey() + "\n", StandardOpenOption.APPEND);
+//        restoreCredentialsProvider();
+//    }
 
     public SignalProtocolStoreImpl getSignalProtocolStore() {
         return signalProtocolStore;
@@ -705,6 +709,16 @@ Path contacts = SIGNAL_FX_CONTACTS_DIR.toPath();
         } catch (InvalidKeyException | IOException e) {
             throw new AssertionError(e);
         }
+    }
+
+    /**
+     * Set the current credentialsProvider. This will also update the (persistent)
+     * store, which is the ultimate source for this info.
+     * @param credentialsProvider 
+     */
+    public void setCredentialsProvider(StaticCredentialsProvider credentialsProvider) {
+        signalProtocolStore.setCredentialsProvider(credentialsProvider);
+        this.credentialsProvider = signalProtocolStore.getCredentialsProvider();
     }
 
     class ClientConnectivityListener implements ConnectivityListener {
