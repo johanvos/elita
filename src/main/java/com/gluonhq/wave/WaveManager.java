@@ -18,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.security.Security;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -38,6 +39,7 @@ import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
 import okhttp3.Interceptor;
 import okhttp3.Response;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 //import org.eclipse.jetty.client.api.ContentResponse;
 import org.signal.libsignal.metadata.certificate.CertificateValidator;
 import org.signal.libsignal.metadata.ProtocolNoSessionException;
@@ -113,6 +115,8 @@ public class WaveManager {
     public final static File SIGNAL_FX_CONTACTS_DIR;
     
     static {
+        Security.addProvider(new BouncyCastleProvider());
+        Security.setProperty("crypto.policy", "unlimited");
         Path contacts = SignalProtocolStoreImpl.SIGNAL_FX_PATH.resolve("contacts/");
         SIGNAL_FX_CONTACTS_DIR = contacts.toFile();
         try {
